@@ -1,11 +1,12 @@
 cmake_minimum_required(VERSION 3.22)
+cmake_policy(SET CMP0135 NEW) # FetchContent timestamp set to uncompress time
 include(FetchContent)
 project(minimal-wgpu-native)
 set(CMAKE_CXX_STANDARD 20)
 
 if(APPLE OR WIN32)
     # WGPU Version used & HASH ##############################
-    set(WGPU_VERSION "0.19.1.1")
+    set(WGPU_VERSION "0.19.3.1")
     set(WGPU_BUILD_TYPE "debug") # or release
     #########################################################
 
