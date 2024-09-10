@@ -4,15 +4,12 @@
 
 #define SOKOL_NO_ENTRY 1
 #define SOKOL_APP_IMPL 1
+#define SOKOL_NOAPI 1
 
 #if defined(__APPLE__)
 #include <Foundation/Foundation.h>
 #include <QuartzCore/CAMetalLayer.h>
 #define SOKOL_METAL 1
-#endif
-
-#if defined(_MSC_VER)
-#define SOKOL_NOAPI 1
 #endif
 
 #if defined(__EMSCRIPTEN__)

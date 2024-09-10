@@ -5,7 +5,7 @@ Minimal application for wgpu on native platforms (+web)
 
 This is an example on how to set up a very minimal native app for Windows and MacOS
 using [wgpu-native](https://github.com/gfx-rs/wgpu-native) as backend. For the native
-window handling we use [sokol_app](https://github.com/floooh/sokol)[1].
+window handling we use [sokol_app](https://github.com/floooh/sokol).
 
 ### Compilation
 
@@ -28,9 +28,3 @@ source $HOME/<path-to-your-emsdk>/emsdk/emsdk_env.sh
 cmake -DCMAKE_TOOLCHAIN_FILE=$EMSDK/upstream/emscripten/cmake/Modules/Platform/Emscripten.cmake ..
 make -j
 ```
- 
-### Notes
-
-[1] We Currently use a [modified version of sokol_app](https://github.com/floooh/sokol/pull/938) 
-to be able to create the WebGPU Context on windows without having to override the GL/DX Context
-created by sokol otherwise.
