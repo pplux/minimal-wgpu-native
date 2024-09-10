@@ -1,6 +1,7 @@
 #include <thread>
 
 #include "demo.h"
+#include "wgpu.h"
 
 #define SOKOL_NO_ENTRY 1
 #define SOKOL_APP_IMPL 1
@@ -37,6 +38,13 @@ void onDevice(WGPU *wgpu);
 
 #ifndef __EMSCRIPTEN__
 void init(WGPU *wgpu) {
+
+    // Specifics to wgpu-native
+    wgpuSetLogCallback([](WGPULogLevel level, const char *msg, void *){
+        fprintf(stderr, "WGPU [%d] %s\n", level, msg);
+        }, nullptr);
+    wgpuSetLogLevel(WGPULogLevel::WGPULogLevel_Error);
+
     { // Surface
         WGPUSurfaceDescriptor surfaceDescriptor = {};
 
@@ -75,10 +83,6 @@ void init(WGPU *wgpu) {
 }
 
 void onDevice(WGPU *wgpu) {
-    wgpuDeviceSetUncapturedErrorCallback(wgpu->device, [](WGPUErrorType type, const char *msg, void *userdata){
-        WGPU *wgpu = static_cast<WGPU*>(userdata);
-        fprintf(stderr, "WGPU Device (%p) Error (type = 0x%x) %s\n", wgpu->device, type, msg?msg:"");
-    }, wgpu);
     wgpu->queue = wgpuDeviceGetQueue(wgpu->device);
 
     WGPUSurfaceCapabilities surfaceCapabilities = {};
@@ -116,7 +120,11 @@ void requestDevice(WGPU *wgpu) {
             fprintf(stderr, "Could not find a capable device after %d tries\n", wgpu->requestedDeviceIndex+1);
             exit(-1);
     }
-
+    deviceDescriptor.uncapturedErrorCallbackInfo.callback =
+            [](WGPUErrorType type, const char *msg, void *userdata) {
+                WGPU *wgpu = static_cast<WGPU *>(userdata);
+                fprintf(stderr, "WGPU Device (%p) Error (type = 0x%x) %s\n", wgpu->device, type, msg ? msg : "");
+            };
     // Request Device (Async)
     wgpuAdapterRequestDevice(wgpu->platform->adapter, &deviceDescriptor, [](WGPURequestDeviceStatus status, WGPUDevice device, const char *message, void *userdata){
         WGPU *wgpu = static_cast<WGPU*>(userdata);
@@ -184,10 +192,14 @@ void frame(WGPU *wgpu) {
             wgpuTextureCreateView(surfaceTexture.texture, NULL);
 
     demo::frame(wgpu, frame);
-    wgpuSurfacePresent(wgpu->platform->surface.object);
     wgpuTextureViewRelease(frame);
     wgpuTextureRelease(surfaceTexture.texture);
 }
+
+void present(WGPU *wgpu) {
+    wgpuSurfacePresent(wgpu->platform->surface.object);
+}
+
 #else
 
 // SOKOL Already initializes WGPU:

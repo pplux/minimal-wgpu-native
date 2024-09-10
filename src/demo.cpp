@@ -64,6 +64,7 @@ namespace demo {
 
         WGPURenderPassColorAttachment renderPassColorAttachment{
                 .view = frame,
+                .depthSlice = WGPU_DEPTH_SLICE_UNDEFINED,
                 .loadOp = WGPULoadOp_Clear,
                 .storeOp = WGPUStoreOp_Store,
                 .clearValue = {.r = 0.2, .g = 0.2, .b = 0.2, .a = 1.0},
@@ -79,12 +80,16 @@ namespace demo {
         wgpuRenderPassEncoderSetPipeline(renderPassEncoder, state.pipeline);
         wgpuRenderPassEncoderDraw(renderPassEncoder, 3, 1, 0, 0);
         wgpuRenderPassEncoderEnd(renderPassEncoder);
+        wgpuRenderPassEncoderRelease(renderPassEncoder);
 
         WGPUCommandBuffer commandBuffer = wgpuCommandEncoderFinish(commandEncoder, nullptr);
         wgpuQueueSubmit(wgpu->queue, 1, &commandBuffer);
 
+        // ready to display
+        present(wgpu);
+
+        // post-display free
         wgpuCommandBufferRelease(commandBuffer);
-        wgpuRenderPassEncoderRelease(renderPassEncoder);
         wgpuCommandEncoderRelease(commandEncoder);
     }
 

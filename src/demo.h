@@ -14,7 +14,9 @@ struct WGPU {
     uint32_t requestedDeviceIndex; // index of the requested device, represents the quality/performance tier
     WGPUQueue queue;
     WGPUPlatform *platform;
+
 };
+void present(WGPU*);
 
 namespace demo {
     void init(WGPU*);
