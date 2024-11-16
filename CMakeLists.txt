@@ -5,6 +5,7 @@ if (NOT DEFINED EMSCRIPTEN)
 endif()
 project(minimal-wgpu-native)
 set(CMAKE_CXX_STANDARD 20)
+include_directories("src/imgui")
 
 if(APPLE OR WIN32)
     # WGPU Version used & HASH ##############################
@@ -32,10 +33,13 @@ if(APPLE OR WIN32)
     if (NOT wgpulib_POPULATED)
         FetchContent_Populate(wgpulib)
     endif()
+    include_directories(${wgpulib_SOURCE_DIR}/include)
     include_directories(${wgpulib_SOURCE_DIR}/include/webgpu)
     include_directories(${wgpulib_SOURCE_DIR}/include/wgpu)
     #########################################################
 endif()
+
+include_directories(imgui)
 
 add_executable(
         minimal-wgpu

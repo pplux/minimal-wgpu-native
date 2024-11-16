@@ -1,7 +1,7 @@
 #include <thread>
 
 #include "demo.h"
-#include "wgpu.h"
+#include <wgpu/wgpu.h>
 
 #define SOKOL_NO_ENTRY 1
 #define SOKOL_APP_IMPL 1
@@ -105,6 +105,7 @@ void onDevice(WGPU *wgpu) {
     wgpu->surfaceFormat = config.viewFormats[0];
 
     demo::init(wgpu);
+    demo::resize(wgpu, config.width, config.height);
 }
 
 void requestDevice(WGPU *wgpu) {
@@ -158,6 +159,7 @@ void frame(WGPU *wgpu) {
             wgpu->platform->surface.config.width = sapp_width();
             wgpu->platform->surface.config.height = sapp_height();
             wgpuSurfaceConfigure(wgpu->platform->surface.object, &wgpu->platform->surface.config);
+            demo::resize(wgpu, width, height);
             return true;
         }
         return false;

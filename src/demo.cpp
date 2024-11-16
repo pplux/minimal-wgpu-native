@@ -1,5 +1,17 @@
 #include "demo.h"
 
+#define IMGUI_IMPL_WEBGPU_BACKEND_WGPU
+#define IMGUI_DEFINE_MATH_OPERATORS
+#include "imconfig.h"
+#include "imgui.h"
+#include "imgui_internal.h"
+#include "imgui.cpp"
+#include "imgui_draw.cpp"
+#include "imgui_widgets.cpp"
+#include "imgui_tables.cpp"
+#include "imgui_demo.cpp"
+#include "backends/imgui_impl_wgpu.cpp"
+
 namespace demo {
 
     static struct State {
@@ -7,6 +19,14 @@ namespace demo {
     } state;
 
     void init(WGPU *wgpu) {
+        ImGui::CreateContext();
+        ImGui_ImplWGPU_InitInfo init_info;
+        init_info.Device = wgpu->device;
+        init_info.NumFramesInFlight = 3;
+        init_info.RenderTargetFormat = wgpu->surfaceFormat;
+        init_info.DepthStencilFormat = WGPUTextureFormat_Undefined;
+        ImGui_ImplWGPU_Init(&init_info);
+
         static const char *code = R"(
             @vertex
             fn vs_main(@builtin(vertex_index) in_vertex_index: u32) -> @builtin(position) vec4<f32> {
@@ -58,7 +78,56 @@ namespace demo {
         wgpuRenderPipelineRelease(state.pipeline);
     }
 
+    void resize(WGPU *wgpu, uint32_t width, uint32_t height) {
+        ImGui_ImplWGPU_InvalidateDeviceObjects();
+        ImGui_ImplWGPU_CreateDeviceObjects();
+        ImGuiIO &io = ImGui::GetIO();
+        io.DisplaySize = ImVec2((float)width, (float)height);
+    }
+
+
     void frame(WGPU *wgpu, WGPUTextureView frame) {
+
+        ImGui_ImplWGPU_NewFrame();
+        ImGui::NewFrame();
+        static bool show_demo_window = true;
+        if (show_demo_window)
+            ImGui::ShowDemoWindow(&show_demo_window);
+
+        ImGui::Render();
+
+        WGPURenderPassColorAttachment color_attachments = {};
+        color_attachments.depthSlice = WGPU_DEPTH_SLICE_UNDEFINED;
+        color_attachments.loadOp = WGPULoadOp_Clear;
+        color_attachments.storeOp = WGPUStoreOp_Store;
+        ImVec4 clear_color = ImVec4(0.45f, 0.55f, 0.60f, 1.00f);
+        color_attachments.clearValue = { clear_color.x * clear_color.w, clear_color.y * clear_color.w, clear_color.z * clear_color.w, clear_color.w };
+        color_attachments.view = frame;
+
+        WGPURenderPassDescriptor render_pass_desc = {};
+        render_pass_desc.colorAttachmentCount = 1;
+        render_pass_desc.colorAttachments = &color_attachments;
+        render_pass_desc.depthStencilAttachment = nullptr;
+
+        WGPUCommandEncoderDescriptor enc_desc = {};
+        WGPUCommandEncoder encoder = wgpuDeviceCreateCommandEncoder(wgpu->device, &enc_desc);
+
+        WGPURenderPassEncoder pass = wgpuCommandEncoderBeginRenderPass(encoder, &render_pass_desc);
+        ImGui_ImplWGPU_RenderDrawData(ImGui::GetDrawData(), pass);
+        wgpuRenderPassEncoderEnd(pass);
+        wgpuRenderPassEncoderRelease(pass);
+
+        WGPUCommandBufferDescriptor cmd_buffer_desc = {};
+        WGPUCommandBuffer cmd_buffer = wgpuCommandEncoderFinish(encoder, &cmd_buffer_desc);
+
+        wgpuQueueSubmit(wgpu->queue, 1, &cmd_buffer);
+
+        present(wgpu);
+
+        wgpuCommandBufferRelease(cmd_buffer);
+        wgpuCommandEncoderRelease(encoder);
+
+#if 0
         WGPUCommandEncoderDescriptor commandEncoderDescriptor = {.label = "Frame"};
         WGPUCommandEncoder commandEncoder = wgpuDeviceCreateCommandEncoder(wgpu->device, &commandEncoderDescriptor);
 
@@ -91,6 +160,7 @@ namespace demo {
         // post-display free
         wgpuCommandBufferRelease(commandBuffer);
         wgpuCommandEncoderRelease(commandEncoder);
+#endif
     }
 
 } // demo namespace

@@ -1,10 +1,6 @@
 #pragma once
 
-#if defined(EMSCRIPTEN)
 #include <webgpu/webgpu.h>
-#else
-#include <webgpu.h>
-#endif
 
 struct WGPUPlatform;
 
@@ -14,7 +10,6 @@ struct WGPU {
     uint32_t requestedDeviceIndex; // index of the requested device, represents the quality/performance tier
     WGPUQueue queue;
     WGPUPlatform *platform;
-
 };
 void present(WGPU*);
 
@@ -22,5 +17,6 @@ namespace demo {
     void init(WGPU*);
     void frame(WGPU*, WGPUTextureView);
     void cleanup(WGPU*);
+    void resize(WGPU*, uint32_t width, uint32_t height);
 }
 
