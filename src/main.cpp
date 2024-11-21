@@ -222,8 +222,6 @@ void frame(WGPU *wgpu) {
 
 #endif
 
-void event(WGPU *wpgu, const sapp_event* event) {
-}
 
 // This needs to be static for EMSCRIPTEN (main doesn't work like a native app)
 namespace {
@@ -238,7 +236,7 @@ int main(int argc, char* argv[]) {
             .init_userdata_cb = [](void *ptr){ init(static_cast<WGPU*>(ptr)); },
             .frame_userdata_cb = [](void *ptr){ frame(static_cast<WGPU*>(ptr)); },
             .cleanup_userdata_cb = [](void *ptr){ cleanup(static_cast<WGPU*>(ptr)); },
-            .event_userdata_cb = [](const sapp_event *e, void *ptr){ event(static_cast<WGPU*>(ptr), e); },
+            .event_userdata_cb = [](const sapp_event *e, void *ptr){ demo::event(static_cast<WGPU*>(ptr), e); },
             .width = 1024,
             .height = 768,
             .window_title = "Minimal WGPU Native"

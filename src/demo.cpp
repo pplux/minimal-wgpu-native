@@ -1,4 +1,5 @@
 #include "demo.h"
+#include "sokol_app.h"
 
 #define IMGUI_IMPL_WEBGPU_BACKEND_WGPU
 #define IMGUI_DEFINE_MATH_OPERATORS
@@ -86,7 +87,133 @@ namespace demo {
     }
 
 
+void event(WGPU *wpgu, const sapp_event* ev) {
+    const float dpi_scale = sapp_dpi_scale();
+    ImGuiIO* io = &ImGui::GetIO();
+    switch (ev->type) {
+        case SAPP_EVENTTYPE_FOCUSED:
+            //simgui_add_focus_event(true);
+            break;
+        case SAPP_EVENTTYPE_UNFOCUSED:
+            //simgui_add_focus_event(false);
+            break;
+        case SAPP_EVENTTYPE_MOUSE_DOWN:
+            //simgui_add_mouse_pos_event(ev->mouse_x / dpi_scale, ev->mouse_y / dpi_scale);
+            //simgui_add_mouse_button_event((int)ev->mouse_button, true);
+            //_simgui_update_modifiers(io, ev->modifiers);
+            break;
+        case SAPP_EVENTTYPE_MOUSE_UP:
+            //simgui_add_mouse_pos_event(ev->mouse_x / dpi_scale, ev->mouse_y / dpi_scale);
+            //simgui_add_mouse_button_event((int)ev->mouse_button, false);
+            //_simgui_update_modifiers(io, ev->modifiers);
+            break;
+        case SAPP_EVENTTYPE_MOUSE_MOVE:
+            //simgui_add_mouse_pos_event(ev->mouse_x / dpi_scale, ev->mouse_y / dpi_scale);
+            break;
+        case SAPP_EVENTTYPE_MOUSE_ENTER:
+        case SAPP_EVENTTYPE_MOUSE_LEAVE:
+            // FIXME: since the sokol_app.h emscripten backend doesn't support
+            // mouse capture, mouse buttons must be released when the mouse leaves the
+            // browser window, so that they don't "stick" when released outside the window.
+            // A cleaner solution would be a new sokol_app.h function to query
+            // "platform behaviour flags".
+            #if defined(__EMSCRIPTEN__)
+            for (int i = 0; i < SAPP_MAX_MOUSEBUTTONS; i++) {
+            //    simgui_add_mouse_button_event(i, false);
+            }
+            #endif
+            break;
+        case SAPP_EVENTTYPE_MOUSE_SCROLL:
+            //simgui_add_mouse_wheel_event(ev->scroll_x, ev->scroll_y);
+            break;
+        case SAPP_EVENTTYPE_TOUCHES_BEGAN:
+            //simgui_add_touch_pos_event(ev->touches[0].pos_x / dpi_scale, ev->touches[0].pos_y / dpi_scale);
+            //simgui_add_touch_button_event(0, true);
+            break;
+        case SAPP_EVENTTYPE_TOUCHES_MOVED:
+            //simgui_add_touch_pos_event(ev->touches[0].pos_x / dpi_scale, ev->touches[0].pos_y / dpi_scale);
+            break;
+        case SAPP_EVENTTYPE_TOUCHES_ENDED:
+            //simgui_add_touch_pos_event(ev->touches[0].pos_x / dpi_scale, ev->touches[0].pos_y / dpi_scale);
+            //simgui_add_touch_button_event(0, false);
+            break;
+        case SAPP_EVENTTYPE_TOUCHES_CANCELLED:
+            //simgui_add_touch_button_event(0, false);
+            break;
+        case SAPP_EVENTTYPE_KEY_DOWN:
+            /*
+            _simgui_update_modifiers(io, ev->modifiers);
+            // intercept Ctrl-V, this is handled via EVENTTYPE_CLIPBOARD_PASTED
+            if (!_simgui.desc.disable_paste_override) {
+                if (_simgui_is_ctrl(ev->modifiers) && (ev->key_code == SAPP_KEYCODE_V)) {
+                    break;
+                }
+            }
+            // on web platform, don't forward Ctrl-X, Ctrl-V to the browser
+            if (_simgui_is_ctrl(ev->modifiers) && (ev->key_code == SAPP_KEYCODE_X)) {
+                sapp_consume_event();
+            }
+            if (_simgui_is_ctrl(ev->modifiers) && (ev->key_code == SAPP_KEYCODE_C)) {
+                sapp_consume_event();
+            }
+            // it's ok to add ImGuiKey_None key events
+            _simgui_add_sapp_key_event(io, ev->key_code, true);
+            */
+            break;
+        case SAPP_EVENTTYPE_KEY_UP:
+            /*
+            _simgui_update_modifiers(io, ev->modifiers);
+            // intercept Ctrl-V, this is handled via EVENTTYPE_CLIPBOARD_PASTED
+            if (_simgui_is_ctrl(ev->modifiers) && (ev->key_code == SAPP_KEYCODE_V)) {
+                break;
+            }
+            // on web platform, don't forward Ctrl-X, Ctrl-V to the browser
+            if (_simgui_is_ctrl(ev->modifiers) && (ev->key_code == SAPP_KEYCODE_X)) {
+                sapp_consume_event();
+            }
+            if (_simgui_is_ctrl(ev->modifiers) && (ev->key_code == SAPP_KEYCODE_C)) {
+                sapp_consume_event();
+            }
+            // it's ok to add ImGuiKey_None key events
+            _simgui_add_sapp_key_event(io, ev->key_code, false);
+            */
+            break;
+        case SAPP_EVENTTYPE_CHAR:
+            /* on some platforms, special keys may be reported as
+               characters, which may confuse some ImGui widgets,
+               drop those, also don't forward characters if some
+               modifiers have been pressed
+            */
+            /*
+            _simgui_update_modifiers(io, ev->modifiers);
+            if ((ev->char_code >= 32) &&
+                (ev->char_code != 127) &&
+                (0 == (ev->modifiers & (SAPP_MODIFIER_ALT|SAPP_MODIFIER_CTRL|SAPP_MODIFIER_SUPER))))
+            {
+                simgui_add_input_character(ev->char_code);
+            }
+            */
+            break;
+        case SAPP_EVENTTYPE_CLIPBOARD_PASTED:
+            /*
+            // simulate a Ctrl-V key down/up
+            if (!_simgui.desc.disable_paste_override) {
+                _simgui_add_imgui_key_event(io, _simgui_copypaste_modifier(), true);
+                _simgui_add_imgui_key_event(io, ImGuiKey_V, true);
+                _simgui_add_imgui_key_event(io, ImGuiKey_V, false);
+                _simgui_add_imgui_key_event(io, _simgui_copypaste_modifier(), false);
+            }
+            */
+            break;
+        default:
+            break;
+    }
+}
+
+
     void frame(WGPU *wgpu, WGPUTextureView frame) {
+
+        ImGuiIO* io = &ImGui::GetIO();
 
         ImGui_ImplWGPU_NewFrame();
         ImGui::NewFrame();

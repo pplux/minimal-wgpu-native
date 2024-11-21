@@ -13,10 +13,13 @@ struct WGPU {
 };
 void present(WGPU*);
 
+struct sapp_event; // defined in sokol_app.h
+
 namespace demo {
     void init(WGPU*);
     void frame(WGPU*, WGPUTextureView);
     void cleanup(WGPU*);
     void resize(WGPU*, uint32_t width, uint32_t height);
+    void event(WGPU *wpgu, const sapp_event* ev);
 }
 
