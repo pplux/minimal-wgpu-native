@@ -1,4 +1,5 @@
 #include <thread>
+#include <memory>
 
 #include "demo.h"
 #include <wgpu/wgpu.h>
@@ -35,6 +36,8 @@ struct WGPUPlatform {
 
 void requestDevice(WGPU *wgpu);
 void onDevice(WGPU *wgpu);
+
+std::unique_ptr<Demo> demo;
 
 #ifndef __EMSCRIPTEN__
 void init(WGPU *wgpu) {
@@ -104,8 +107,8 @@ void onDevice(WGPU *wgpu) {
 
     wgpu->surfaceFormat = config.viewFormats[0];
 
-    demo::init(wgpu);
-    demo::resize(wgpu, config.width, config.height);
+    demo->init(wgpu);
+    demo->resize(wgpu, config.width, config.height);
 }
 
 void requestDevice(WGPU *wgpu) {
@@ -141,7 +144,7 @@ void requestDevice(WGPU *wgpu) {
 }
 
 void cleanup(WGPU *wgpu) {
-    demo::cleanup(wgpu);
+    demo->cleanup(wgpu);
     wgpuDeviceRelease(wgpu->device);
     wgpuAdapterRelease(wgpu->platform->adapter);
     wgpuSurfaceRelease(wgpu->platform->surface.object);
@@ -159,7 +162,7 @@ void frame(WGPU *wgpu) {
             wgpu->platform->surface.config.width = sapp_width();
             wgpu->platform->surface.config.height = sapp_height();
             wgpuSurfaceConfigure(wgpu->platform->surface.object, &wgpu->platform->surface.config);
-            demo::resize(wgpu, width, height);
+            demo->resize(wgpu, width, height);
             return true;
         }
         return false;
@@ -193,7 +196,7 @@ void frame(WGPU *wgpu) {
     WGPUTextureView frame =
             wgpuTextureCreateView(surfaceTexture.texture, NULL);
 
-    demo::frame(wgpu, frame);
+    demo->frame(wgpu, frame);
     wgpuTextureViewRelease(frame);
     wgpuTextureRelease(surfaceTexture.texture);
 }
@@ -209,15 +212,15 @@ void init(WGPU *wgpu) {
     wgpu->device = (WGPUDevice) sapp_wgpu_get_device();
     wgpu->queue = wgpuDeviceGetQueue(wgpu->device);
     wgpu->surfaceFormat =  _sapp.wgpu.render_format;
-    demo::init(wgpu);
+    demo->init(wgpu);
 }
 
 void cleanup(WGPU *wgpu) {
-    demo::cleanup(wgpu);
+    demo->cleanup(wgpu);
 }
 
 void frame(WGPU *wgpu) {
-   demo::frame(wgpu, (WGPUTextureView)(const_cast<void*>(sapp_wgpu_get_render_view())));
+   demo->frame(wgpu, (WGPUTextureView)(const_cast<void*>(sapp_wgpu_get_render_view())));
 }
 
 #endif
@@ -231,12 +234,14 @@ namespace {
 
 int main(int argc, char* argv[]) {
 
+    demo = std::make_unique<ImguiDemo>();
+
     sapp_desc sokolConfig = {
             .user_data = &wgpu,
             .init_userdata_cb = [](void *ptr){ init(static_cast<WGPU*>(ptr)); },
             .frame_userdata_cb = [](void *ptr){ frame(static_cast<WGPU*>(ptr)); },
             .cleanup_userdata_cb = [](void *ptr){ cleanup(static_cast<WGPU*>(ptr)); },
-            .event_userdata_cb = [](const sapp_event *e, void *ptr){ demo::event(static_cast<WGPU*>(ptr), e); },
+            .event_userdata_cb = [](const sapp_event *e, void *ptr){ demo->event(static_cast<WGPU*>(ptr), e); },
             .width = 1024,
             .height = 768,
             .window_title = "Minimal WGPU Native"
