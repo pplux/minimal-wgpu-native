@@ -90,25 +90,156 @@ namespace demo {
 void event(WGPU *wpgu, const sapp_event* ev) {
     const float dpi_scale = sapp_dpi_scale();
     ImGuiIO* io = &ImGui::GetIO();
+
+    auto updateModifiers = [io](uint32_t mods)
+    {
+        io->AddKeyEvent(ImGuiMod_Ctrl, (mods & SAPP_MODIFIER_CTRL) != 0);
+        io->AddKeyEvent(ImGuiMod_Shift, (mods & SAPP_MODIFIER_SHIFT) != 0);
+        io->AddKeyEvent(ImGuiMod_Alt, (mods & SAPP_MODIFIER_ALT) != 0);
+        io->AddKeyEvent(ImGuiMod_Super, (mods & SAPP_MODIFIER_SUPER) != 0);
+    };
+
+    auto mapKeyCode = [](sapp_keycode key) -> ImGuiKey {
+    switch (key) {
+        case SAPP_KEYCODE_SPACE:        return ImGuiKey_Space;
+        case SAPP_KEYCODE_APOSTROPHE:   return ImGuiKey_Apostrophe;
+        case SAPP_KEYCODE_COMMA:        return ImGuiKey_Comma;
+        case SAPP_KEYCODE_MINUS:        return ImGuiKey_Minus;
+        case SAPP_KEYCODE_PERIOD:       return ImGuiKey_Apostrophe;
+        case SAPP_KEYCODE_SLASH:        return ImGuiKey_Slash;
+        case SAPP_KEYCODE_0:            return ImGuiKey_0;
+        case SAPP_KEYCODE_1:            return ImGuiKey_1;
+        case SAPP_KEYCODE_2:            return ImGuiKey_2;
+        case SAPP_KEYCODE_3:            return ImGuiKey_3;
+        case SAPP_KEYCODE_4:            return ImGuiKey_4;
+        case SAPP_KEYCODE_5:            return ImGuiKey_5;
+        case SAPP_KEYCODE_6:            return ImGuiKey_6;
+        case SAPP_KEYCODE_7:            return ImGuiKey_7;
+        case SAPP_KEYCODE_8:            return ImGuiKey_8;
+        case SAPP_KEYCODE_9:            return ImGuiKey_9;
+        case SAPP_KEYCODE_SEMICOLON:    return ImGuiKey_Semicolon;
+        case SAPP_KEYCODE_EQUAL:        return ImGuiKey_Equal;
+        case SAPP_KEYCODE_A:            return ImGuiKey_A;
+        case SAPP_KEYCODE_B:            return ImGuiKey_B;
+        case SAPP_KEYCODE_C:            return ImGuiKey_C;
+        case SAPP_KEYCODE_D:            return ImGuiKey_D;
+        case SAPP_KEYCODE_E:            return ImGuiKey_E;
+        case SAPP_KEYCODE_F:            return ImGuiKey_F;
+        case SAPP_KEYCODE_G:            return ImGuiKey_G;
+        case SAPP_KEYCODE_H:            return ImGuiKey_H;
+        case SAPP_KEYCODE_I:            return ImGuiKey_I;
+        case SAPP_KEYCODE_J:            return ImGuiKey_J;
+        case SAPP_KEYCODE_K:            return ImGuiKey_K;
+        case SAPP_KEYCODE_L:            return ImGuiKey_L;
+        case SAPP_KEYCODE_M:            return ImGuiKey_M;
+        case SAPP_KEYCODE_N:            return ImGuiKey_N;
+        case SAPP_KEYCODE_O:            return ImGuiKey_O;
+        case SAPP_KEYCODE_P:            return ImGuiKey_P;
+        case SAPP_KEYCODE_Q:            return ImGuiKey_Q;
+        case SAPP_KEYCODE_R:            return ImGuiKey_R;
+        case SAPP_KEYCODE_S:            return ImGuiKey_S;
+        case SAPP_KEYCODE_T:            return ImGuiKey_T;
+        case SAPP_KEYCODE_U:            return ImGuiKey_U;
+        case SAPP_KEYCODE_V:            return ImGuiKey_V;
+        case SAPP_KEYCODE_W:            return ImGuiKey_W;
+        case SAPP_KEYCODE_X:            return ImGuiKey_X;
+        case SAPP_KEYCODE_Y:            return ImGuiKey_Y;
+        case SAPP_KEYCODE_Z:            return ImGuiKey_Z;
+        case SAPP_KEYCODE_LEFT_BRACKET: return ImGuiKey_LeftBracket;
+        case SAPP_KEYCODE_BACKSLASH:    return ImGuiKey_Backslash;
+        case SAPP_KEYCODE_RIGHT_BRACKET:return ImGuiKey_RightBracket;
+        case SAPP_KEYCODE_GRAVE_ACCENT: return ImGuiKey_GraveAccent;
+        case SAPP_KEYCODE_ESCAPE:       return ImGuiKey_Escape;
+        case SAPP_KEYCODE_ENTER:        return ImGuiKey_Enter;
+        case SAPP_KEYCODE_TAB:          return ImGuiKey_Tab;
+        case SAPP_KEYCODE_BACKSPACE:    return ImGuiKey_Backspace;
+        case SAPP_KEYCODE_INSERT:       return ImGuiKey_Insert;
+        case SAPP_KEYCODE_DELETE:       return ImGuiKey_Delete;
+        case SAPP_KEYCODE_RIGHT:        return ImGuiKey_RightArrow;
+        case SAPP_KEYCODE_LEFT:         return ImGuiKey_LeftArrow;
+        case SAPP_KEYCODE_DOWN:         return ImGuiKey_DownArrow;
+        case SAPP_KEYCODE_UP:           return ImGuiKey_UpArrow;
+        case SAPP_KEYCODE_PAGE_UP:      return ImGuiKey_PageUp;
+        case SAPP_KEYCODE_PAGE_DOWN:    return ImGuiKey_PageDown;
+        case SAPP_KEYCODE_HOME:         return ImGuiKey_Home;
+        case SAPP_KEYCODE_END:          return ImGuiKey_End;
+        case SAPP_KEYCODE_CAPS_LOCK:    return ImGuiKey_CapsLock;
+        case SAPP_KEYCODE_SCROLL_LOCK:  return ImGuiKey_ScrollLock;
+        case SAPP_KEYCODE_NUM_LOCK:     return ImGuiKey_NumLock;
+        case SAPP_KEYCODE_PRINT_SCREEN: return ImGuiKey_PrintScreen;
+        case SAPP_KEYCODE_PAUSE:        return ImGuiKey_Pause;
+        case SAPP_KEYCODE_F1:           return ImGuiKey_F1;
+        case SAPP_KEYCODE_F2:           return ImGuiKey_F2;
+        case SAPP_KEYCODE_F3:           return ImGuiKey_F3;
+        case SAPP_KEYCODE_F4:           return ImGuiKey_F4;
+        case SAPP_KEYCODE_F5:           return ImGuiKey_F5;
+        case SAPP_KEYCODE_F6:           return ImGuiKey_F6;
+        case SAPP_KEYCODE_F7:           return ImGuiKey_F7;
+        case SAPP_KEYCODE_F8:           return ImGuiKey_F8;
+        case SAPP_KEYCODE_F9:           return ImGuiKey_F9;
+        case SAPP_KEYCODE_F10:          return ImGuiKey_F10;
+        case SAPP_KEYCODE_F11:          return ImGuiKey_F11;
+        case SAPP_KEYCODE_F12:          return ImGuiKey_F12;
+        case SAPP_KEYCODE_KP_0:         return ImGuiKey_Keypad0;
+        case SAPP_KEYCODE_KP_1:         return ImGuiKey_Keypad1;
+        case SAPP_KEYCODE_KP_2:         return ImGuiKey_Keypad2;
+        case SAPP_KEYCODE_KP_3:         return ImGuiKey_Keypad3;
+        case SAPP_KEYCODE_KP_4:         return ImGuiKey_Keypad4;
+        case SAPP_KEYCODE_KP_5:         return ImGuiKey_Keypad5;
+        case SAPP_KEYCODE_KP_6:         return ImGuiKey_Keypad6;
+        case SAPP_KEYCODE_KP_7:         return ImGuiKey_Keypad7;
+        case SAPP_KEYCODE_KP_8:         return ImGuiKey_Keypad8;
+        case SAPP_KEYCODE_KP_9:         return ImGuiKey_Keypad9;
+        case SAPP_KEYCODE_KP_DECIMAL:   return ImGuiKey_KeypadDecimal;
+        case SAPP_KEYCODE_KP_DIVIDE:    return ImGuiKey_KeypadDivide;
+        case SAPP_KEYCODE_KP_MULTIPLY:  return ImGuiKey_KeypadMultiply;
+        case SAPP_KEYCODE_KP_SUBTRACT:  return ImGuiKey_KeypadSubtract;
+        case SAPP_KEYCODE_KP_ADD:       return ImGuiKey_KeypadAdd;
+        case SAPP_KEYCODE_KP_ENTER:     return ImGuiKey_KeypadEnter;
+        case SAPP_KEYCODE_KP_EQUAL:     return ImGuiKey_KeypadEqual;
+        case SAPP_KEYCODE_LEFT_SHIFT:   return ImGuiKey_LeftShift;
+        case SAPP_KEYCODE_LEFT_CONTROL: return ImGuiKey_LeftCtrl;
+        case SAPP_KEYCODE_LEFT_ALT:     return ImGuiKey_LeftAlt;
+        case SAPP_KEYCODE_LEFT_SUPER:   return ImGuiKey_LeftSuper;
+        case SAPP_KEYCODE_RIGHT_SHIFT:  return ImGuiKey_RightShift;
+        case SAPP_KEYCODE_RIGHT_CONTROL:return ImGuiKey_RightCtrl;
+        case SAPP_KEYCODE_RIGHT_ALT:    return ImGuiKey_RightAlt;
+        case SAPP_KEYCODE_RIGHT_SUPER:  return ImGuiKey_RightSuper;
+        case SAPP_KEYCODE_MENU:         return ImGuiKey_Menu;
+        default:                        return ImGuiKey_None;
+    }
+};
+
+#if defined(__APPLE__)
+    const ImGuiKey CopyPasteModifier = ImGuiMod_Super;
+    const uint32_t CopyPasteModifierSokol = SAPP_MODIFIER_SUPER;
+#else
+    const ImGuiKey CopyPasteModifier = ImGuiMod_Ctrl;
+    const uint32_t CopyPasteModifierSokol = SAPP_MODIFIER_CTRL;
+#endif
+
     switch (ev->type) {
         case SAPP_EVENTTYPE_FOCUSED:
-            //simgui_add_focus_event(true);
+            io->AddFocusEvent(true);
             break;
         case SAPP_EVENTTYPE_UNFOCUSED:
-            //simgui_add_focus_event(false);
+            io->AddFocusEvent(false);
             break;
         case SAPP_EVENTTYPE_MOUSE_DOWN:
-            //simgui_add_mouse_pos_event(ev->mouse_x / dpi_scale, ev->mouse_y / dpi_scale);
-            //simgui_add_mouse_button_event((int)ev->mouse_button, true);
-            //_simgui_update_modifiers(io, ev->modifiers);
+            updateModifiers(ev->modifiers);
+            io->AddMouseSourceEvent(ImGuiMouseSource_Mouse);
+            io->AddMousePosEvent(ev->mouse_x/dpi_scale, ev->mouse_y/dpi_scale);
+            io->AddMouseButtonEvent((int)ev->mouse_button, true);
             break;
         case SAPP_EVENTTYPE_MOUSE_UP:
-            //simgui_add_mouse_pos_event(ev->mouse_x / dpi_scale, ev->mouse_y / dpi_scale);
-            //simgui_add_mouse_button_event((int)ev->mouse_button, false);
-            //_simgui_update_modifiers(io, ev->modifiers);
+            updateModifiers(ev->modifiers);
+            io->AddMouseSourceEvent(ImGuiMouseSource_Mouse);
+            io->AddMousePosEvent(ev->mouse_x/dpi_scale, ev->mouse_y/dpi_scale);
+            io->AddMouseButtonEvent((int)ev->mouse_button, false);
             break;
         case SAPP_EVENTTYPE_MOUSE_MOVE:
-            //simgui_add_mouse_pos_event(ev->mouse_x / dpi_scale, ev->mouse_y / dpi_scale);
+            io->AddMouseSourceEvent(ImGuiMouseSource_Mouse);
+            io->AddMousePosEvent(ev->mouse_x/dpi_scale, ev->mouse_y/dpi_scale);
             break;
         case SAPP_EVENTTYPE_MOUSE_ENTER:
         case SAPP_EVENTTYPE_MOUSE_LEAVE:
@@ -117,14 +248,16 @@ void event(WGPU *wpgu, const sapp_event* ev) {
             // browser window, so that they don't "stick" when released outside the window.
             // A cleaner solution would be a new sokol_app.h function to query
             // "platform behaviour flags".
+            io->AddMouseSourceEvent(ImGuiMouseSource_Mouse);
             #if defined(__EMSCRIPTEN__)
             for (int i = 0; i < SAPP_MAX_MOUSEBUTTONS; i++) {
-            //    simgui_add_mouse_button_event(i, false);
+                io->AddMouseButtonEvent(i, false);
             }
             #endif
             break;
         case SAPP_EVENTTYPE_MOUSE_SCROLL:
-            //simgui_add_mouse_wheel_event(ev->scroll_x, ev->scroll_y);
+            io->AddMouseSourceEvent(ImGuiMouseSource_Mouse);
+            io->AddMouseWheelEvent(ev->scroll_x, ev->scroll_y);
             break;
         case SAPP_EVENTTYPE_TOUCHES_BEGAN:
             //simgui_add_touch_pos_event(ev->touches[0].pos_x / dpi_scale, ev->touches[0].pos_y / dpi_scale);
@@ -141,69 +274,40 @@ void event(WGPU *wpgu, const sapp_event* ev) {
             //simgui_add_touch_button_event(0, false);
             break;
         case SAPP_EVENTTYPE_KEY_DOWN:
-            /*
-            _simgui_update_modifiers(io, ev->modifiers);
-            // intercept Ctrl-V, this is handled via EVENTTYPE_CLIPBOARD_PASTED
-            if (!_simgui.desc.disable_paste_override) {
-                if (_simgui_is_ctrl(ev->modifiers) && (ev->key_code == SAPP_KEYCODE_V)) {
-                    break;
-                }
-            }
+            updateModifiers(ev->modifiers);
             // on web platform, don't forward Ctrl-X, Ctrl-V to the browser
-            if (_simgui_is_ctrl(ev->modifiers) && (ev->key_code == SAPP_KEYCODE_X)) {
+            if ((ev->modifiers & CopyPasteModifierSokol) && ((ev->key_code == SAPP_KEYCODE_X) || (ev->key_code == SAPP_KEYCODE_C) )) {
                 sapp_consume_event();
             }
-            if (_simgui_is_ctrl(ev->modifiers) && (ev->key_code == SAPP_KEYCODE_C)) {
-                sapp_consume_event();
-            }
-            // it's ok to add ImGuiKey_None key events
-            _simgui_add_sapp_key_event(io, ev->key_code, true);
-            */
+            io->AddKeyEvent(mapKeyCode(ev->key_code), true);
             break;
         case SAPP_EVENTTYPE_KEY_UP:
-            /*
-            _simgui_update_modifiers(io, ev->modifiers);
+            updateModifiers(ev->modifiers);
             // intercept Ctrl-V, this is handled via EVENTTYPE_CLIPBOARD_PASTED
-            if (_simgui_is_ctrl(ev->modifiers) && (ev->key_code == SAPP_KEYCODE_V)) {
+            if ((ev->modifiers & CopyPasteModifier) && (ev->key_code == SAPP_KEYCODE_V)) {
                 break;
             }
             // on web platform, don't forward Ctrl-X, Ctrl-V to the browser
-            if (_simgui_is_ctrl(ev->modifiers) && (ev->key_code == SAPP_KEYCODE_X)) {
+            if ((ev->modifiers & CopyPasteModifierSokol) && ((ev->key_code == SAPP_KEYCODE_X) || (ev->key_code == SAPP_KEYCODE_C) )) {
                 sapp_consume_event();
             }
-            if (_simgui_is_ctrl(ev->modifiers) && (ev->key_code == SAPP_KEYCODE_C)) {
-                sapp_consume_event();
-            }
-            // it's ok to add ImGuiKey_None key events
-            _simgui_add_sapp_key_event(io, ev->key_code, false);
-            */
+            io->AddKeyEvent(mapKeyCode(ev->key_code), false);
             break;
         case SAPP_EVENTTYPE_CHAR:
-            /* on some platforms, special keys may be reported as
-               characters, which may confuse some ImGui widgets,
-               drop those, also don't forward characters if some
-               modifiers have been pressed
-            */
-            /*
-            _simgui_update_modifiers(io, ev->modifiers);
+            updateModifiers(ev->modifiers);
             if ((ev->char_code >= 32) &&
                 (ev->char_code != 127) &&
                 (0 == (ev->modifiers & (SAPP_MODIFIER_ALT|SAPP_MODIFIER_CTRL|SAPP_MODIFIER_SUPER))))
             {
-                simgui_add_input_character(ev->char_code);
+                io->AddInputCharacter(ev->char_code);
             }
-            */
             break;
         case SAPP_EVENTTYPE_CLIPBOARD_PASTED:
-            /*
             // simulate a Ctrl-V key down/up
-            if (!_simgui.desc.disable_paste_override) {
-                _simgui_add_imgui_key_event(io, _simgui_copypaste_modifier(), true);
-                _simgui_add_imgui_key_event(io, ImGuiKey_V, true);
-                _simgui_add_imgui_key_event(io, ImGuiKey_V, false);
-                _simgui_add_imgui_key_event(io, _simgui_copypaste_modifier(), false);
-            }
-            */
+            io->AddKeyEvent(CopyPasteModifier, true);
+            io->AddKeyEvent(ImGuiKey_V, true);
+            io->AddKeyEvent(ImGuiKey_V, false);
+            io->AddKeyEvent(CopyPasteModifier, false);
             break;
         default:
             break;
