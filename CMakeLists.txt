@@ -44,7 +44,8 @@ include_directories(imgui)
 add_executable(
         minimal-wgpu
         src/main.cpp
-        src/demo.cpp
+        src/DemoImgui.cpp
+        src/DemoTriangle.cpp
         src/demo.h)
 
 if(APPLE)

@@ -1,6 +1,7 @@
 #pragma once
 
 #include <webgpu/webgpu.h>
+#include <memory>
 
 struct WGPUPlatform;
 
@@ -11,7 +12,6 @@ struct WGPU {
     WGPUQueue queue;
     WGPUPlatform *platform;
 };
-void present(WGPU*);
 
 struct sapp_event; // defined in sokol_app.h
 
@@ -24,11 +24,7 @@ struct Demo {
     virtual void event(WGPU *wpgu, const sapp_event* ev) {}
 };
 
+std::unique_ptr<Demo> createDemoImgui();
+std::unique_ptr<Demo> createDemoTriangle();
 
-struct ImguiDemo : public Demo {
-    virtual void init(WGPU*);
-    virtual void frame(WGPU*, WGPUTextureView);
-    virtual void cleanup(WGPU*);
-    virtual void resize(WGPU*, uint32_t width, uint32_t height);
-    virtual void event(WGPU *wpgu, const sapp_event* ev);
-};
+void addDemoWindow(std::unique_ptr<Demo> &&demo);

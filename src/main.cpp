@@ -124,6 +124,7 @@ void requestDevice(WGPU *wgpu) {
             fprintf(stderr, "Could not find a capable device after %d tries\n", wgpu->requestedDeviceIndex+1);
             exit(-1);
     }
+    deviceDescriptor.uncapturedErrorCallbackInfo.userdata = wgpu;
     deviceDescriptor.uncapturedErrorCallbackInfo.callback =
             [](WGPUErrorType type, const char *msg, void *userdata) {
                 WGPU *wgpu = static_cast<WGPU *>(userdata);
@@ -197,12 +198,10 @@ void frame(WGPU *wgpu) {
             wgpuTextureCreateView(surfaceTexture.texture, NULL);
 
     demo->frame(wgpu, frame);
+    wgpuSurfacePresent(wgpu->platform->surface.object);
+
     wgpuTextureViewRelease(frame);
     wgpuTextureRelease(surfaceTexture.texture);
-}
-
-void present(WGPU *wgpu) {
-    wgpuSurfacePresent(wgpu->platform->surface.object);
 }
 
 #else
@@ -234,7 +233,10 @@ namespace {
 
 int main(int argc, char* argv[]) {
 
-    demo = std::make_unique<ImguiDemo>();
+    demo = createDemoImgui();
+    addDemoWindow(createDemoTriangle());
+    addDemoWindow(createDemoTriangle());
+    addDemoWindow(createDemoTriangle());
 
     sapp_desc sokolConfig = {
             .user_data = &wgpu,

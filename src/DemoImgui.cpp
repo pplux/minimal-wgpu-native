@@ -1,11 +1,10 @@
+#include <vector>
 #include "demo.h"
 #include "sokol_app.h"
 
 #define IMGUI_IMPL_WEBGPU_BACKEND_WGPU
 #define IMGUI_DEFINE_MATH_OPERATORS
-#include "imconfig.h"
 #include "imgui.h"
-#include "imgui_internal.h"
 #include "imgui.cpp"
 #include "imgui_draw.cpp"
 #include "imgui_widgets.cpp"
@@ -13,11 +12,44 @@
 #include "imgui_demo.cpp"
 #include "backends/imgui_impl_wgpu.cpp"
 
-static struct State {
-    WGPURenderPipeline pipeline;
-} state;
+struct DemoWindow {
+    std::unique_ptr<Demo> window;
+    uint32_t width = 0;
+    uint32_t height = 0;
+    bool opened = true;
+    std::string name;
+    WGPUTexture texture = nullptr;
+    WGPUTextureView view = {};
+};
 
-void ImguiDemo::init(WGPU *wgpu) {
+struct DemoImgui : public Demo {
+    virtual void init(WGPU*);
+    virtual void frame(WGPU*, WGPUTextureView);
+    virtual void cleanup(WGPU*);
+    virtual void resize(WGPU*, uint32_t width, uint32_t height);
+    virtual void event(WGPU *wpgu, const sapp_event* ev);
+
+    std::vector<DemoWindow> windows;
+};
+
+static DemoImgui *imgui = nullptr;
+
+std::unique_ptr<Demo> createDemoImgui() {
+    assert(imgui == nullptr);
+    auto demo = std::make_unique<DemoImgui>();
+    imgui = demo.get();
+    return std::move(demo);
+}
+
+void addDemoWindow(std::unique_ptr<Demo> &&demo) {
+    assert(imgui != nullptr);
+    DemoWindow window = {};
+    window.window = std::move(demo);
+    window.name = "Demo-" + std::to_string(imgui->windows.size());
+    imgui->windows.push_back(std::move(window));
+}
+
+void DemoImgui::init(WGPU *wgpu) {
     ImGui::CreateContext();
     ImGui_ImplWGPU_InitInfo init_info;
     init_info.Device = wgpu->device;
@@ -26,58 +58,19 @@ void ImguiDemo::init(WGPU *wgpu) {
     init_info.DepthStencilFormat = WGPUTextureFormat_Undefined;
     ImGui_ImplWGPU_Init(&init_info);
 
-    static const char *code = R"(
-        @vertex
-        fn vs_main(@builtin(vertex_index) in_vertex_index: u32) -> @builtin(position) vec4<f32> {
-            let x = f32(i32(in_vertex_index) - 1);
-            let y = f32(i32(in_vertex_index & 1u) * 2 - 1);
-            return vec4<f32>(x, y, 0.0, 1.0);
-        }
-
-        @fragment
-        fn fs_main() -> @location(0) vec4<f32> {
-            return vec4<f32>(1.0, 0.0, 0.0, 1.0);
-        }
-    )";
-
-    const WGPUShaderModuleWGSLDescriptor shaderCode = {.chain = {.sType = WGPUSType_ShaderModuleWGSLDescriptor}, .code = code };
-    const WGPUShaderModuleDescriptor shaderModuleDescriptor = {
-            .nextInChain = &shaderCode.chain,
-            .label = "Basic Triangle",
-    };
-    const WGPUShaderModule shaderModule = wgpuDeviceCreateShaderModule(wgpu->device, &shaderModuleDescriptor);
-    const WGPUPipelineLayoutDescriptor pipelineLayoutDescriptor = {
-            .label = "pipeline layout"
-    };
-    const WGPUPipelineLayout pipelineLayout = wgpuDeviceCreatePipelineLayout(wgpu->device, &pipelineLayoutDescriptor);
-    const WGPUColorTargetState colorTargetStates = {.format = wgpu->surfaceFormat, .writeMask = WGPUColorWriteMask_All};
-    const WGPUFragmentState fragment = {
-            .module = shaderModule,
-            .entryPoint = "fs_main",
-            .targetCount = 1,
-            .targets = &colorTargetStates,
-    };
-    const WGPURenderPipelineDescriptor pipelineDescriptor = {
-            .label = "Render Triangle",
-            .layout = pipelineLayout,
-            .vertex = { .module = shaderModule, .entryPoint = "vs_main"},
-            .primitive = { .topology = WGPUPrimitiveTopology_TriangleList},
-            .multisample = { .count = 1, .mask = 0xFFFFFFFF},
-            .fragment = &fragment,
-
-    };
-
-    state.pipeline = wgpuDeviceCreateRenderPipeline(wgpu->device, &pipelineDescriptor);
-
-    wgpuShaderModuleRelease(shaderModule);
-    wgpuPipelineLayoutRelease(pipelineLayout);
+    for(auto &&w: windows) {
+        w.window->init(wgpu);
+    }
 }
 
-void ImguiDemo::cleanup(WGPU *) {
-    wgpuRenderPipelineRelease(state.pipeline);
+void DemoImgui::cleanup(WGPU *wgpu) {
+    for(auto &&w: windows) {
+        w.window->cleanup(wgpu);
+    }
+    ImGui_ImplWGPU_Shutdown();
 }
 
-void ImguiDemo::resize(WGPU *wgpu, uint32_t width, uint32_t height) {
+void DemoImgui::resize(WGPU *wgpu, uint32_t width, uint32_t height) {
     ImGui_ImplWGPU_InvalidateDeviceObjects();
     ImGui_ImplWGPU_CreateDeviceObjects();
     ImGuiIO &io = ImGui::GetIO();
@@ -85,7 +78,7 @@ void ImguiDemo::resize(WGPU *wgpu, uint32_t width, uint32_t height) {
 }
 
 
-void ImguiDemo::event(WGPU *wpgu, const sapp_event* ev) {
+void DemoImgui::event(WGPU *wpgu, const sapp_event* ev) {
 const float dpi_scale = sapp_dpi_scale();
 ImGuiIO* io = &ImGui::GetIO();
 
@@ -313,15 +306,65 @@ switch (ev->type) {
 }
 
 
-void ImguiDemo::frame(WGPU *wgpu, WGPUTextureView frame) {
-
-    ImGuiIO* io = &ImGui::GetIO();
-
+void DemoImgui::frame(WGPU *wgpu, WGPUTextureView frame) {
+    bool invalidateObjects = false;
     ImGui_ImplWGPU_NewFrame();
     ImGui::NewFrame();
     static bool show_demo_window = true;
+
     if (show_demo_window)
         ImGui::ShowDemoWindow(&show_demo_window);
+
+    for(auto &&w: windows) {
+        if (ImGui::Begin(w.name.c_str())) {
+            const ImVec2 size = ImGui::GetContentRegionAvail();
+            const auto width = (uint32_t) size.x;
+            const auto height = (uint32_t) size.y;
+            const bool valid = (width > 0) && (height > 0);
+            if (!valid) {
+                ImGui::End();
+                continue;
+            };
+
+            const bool resize = (width != w.width) || (height != w.height);
+            if (resize) {
+                w.window->resize(wgpu, width, height);
+                w.width = width;
+                w.height = height;
+
+                if (w.texture) {
+                    wgpuTextureRelease(w.texture);
+                    wgpuTextureViewRelease(w.view);
+                    invalidateObjects = true;
+                }
+
+                // Create a texture with the new size
+                WGPUTextureDescriptor descriptor = {};
+                descriptor.size.width = w.width;
+                descriptor.size.height = w.height;
+                descriptor.size.depthOrArrayLayers = 1;
+                descriptor.mipLevelCount = 1;
+                descriptor.sampleCount = 1;
+                descriptor.dimension = WGPUTextureDimension_2D;
+                descriptor.format = WGPUTextureFormat_RGBA8Unorm;
+                descriptor.usage = WGPUTextureUsage_RenderAttachment | WGPUTextureUsage_TextureBinding;
+                w.texture = wgpuDeviceCreateTexture(wgpu->device, &descriptor);
+
+                // Create a texture view
+                WGPUTextureViewDescriptor viewDescriptor = {};
+                viewDescriptor.format = WGPUTextureFormat_RGBA8Unorm;
+                viewDescriptor.dimension = WGPUTextureViewDimension_2D;
+                viewDescriptor.mipLevelCount = 1;
+                viewDescriptor.arrayLayerCount = 1;
+                viewDescriptor.baseArrayLayer = 0;
+                viewDescriptor.baseMipLevel = 0;
+                w.view = wgpuTextureCreateView(w.texture, &viewDescriptor);
+            }
+            w.window->frame(wgpu, w.view);
+            ImGui::Image((ImTextureID)w.view, size);
+        }
+        ImGui::End();
+    }
 
     ImGui::Render();
 
@@ -351,43 +394,11 @@ void ImguiDemo::frame(WGPU *wgpu, WGPUTextureView frame) {
 
     wgpuQueueSubmit(wgpu->queue, 1, &cmd_buffer);
 
-    present(wgpu);
-
     wgpuCommandBufferRelease(cmd_buffer);
     wgpuCommandEncoderRelease(encoder);
 
-#if 0
-    WGPUCommandEncoderDescriptor commandEncoderDescriptor = {.label = "Frame"};
-    WGPUCommandEncoder commandEncoder = wgpuDeviceCreateCommandEncoder(wgpu->device, &commandEncoderDescriptor);
-
-    WGPURenderPassColorAttachment renderPassColorAttachment{
-            .view = frame,
-            .depthSlice = WGPU_DEPTH_SLICE_UNDEFINED,
-            .loadOp = WGPULoadOp_Clear,
-            .storeOp = WGPUStoreOp_Store,
-            .clearValue = {.r = 0.2, .g = 0.2, .b = 0.2, .a = 1.0},
-
-    };
-    WGPURenderPassDescriptor renderPass = {
-            .label = "Main Pass",
-            .colorAttachmentCount = 1,
-            .colorAttachments = &renderPassColorAttachment,
-    };
-
-    WGPURenderPassEncoder renderPassEncoder = wgpuCommandEncoderBeginRenderPass(commandEncoder, &renderPass);
-    wgpuRenderPassEncoderSetPipeline(renderPassEncoder, state.pipeline);
-    wgpuRenderPassEncoderDraw(renderPassEncoder, 3, 1, 0, 0);
-    wgpuRenderPassEncoderEnd(renderPassEncoder);
-    wgpuRenderPassEncoderRelease(renderPassEncoder);
-
-    WGPUCommandBuffer commandBuffer = wgpuCommandEncoderFinish(commandEncoder, nullptr);
-    wgpuQueueSubmit(wgpu->queue, 1, &commandBuffer);
-
-    // ready to display
-    present(wgpu);
-
-    // post-display free
-    wgpuCommandBufferRelease(commandBuffer);
-    wgpuCommandEncoderRelease(commandEncoder);
-#endif
+    if (invalidateObjects) {
+        ImGui_ImplWGPU_InvalidateDeviceObjects();
+    }
 }
+
