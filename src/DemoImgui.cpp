@@ -26,7 +26,7 @@ struct DemoImgui : public Demo {
     virtual void init(WGPU*);
     virtual void frame(WGPU*, WGPUTextureView);
     virtual void cleanup(WGPU*);
-    virtual void resize(WGPU*, uint32_t width, uint32_t height);
+    virtual void resize(WGPU*, uint32_t width, uint32_t height, float dpi);
     virtual void event(WGPU *wpgu, const sapp_event* ev);
 
     std::vector<DemoWindow> windows;
@@ -51,7 +51,7 @@ void addDemoWindow(std::unique_ptr<Demo> &&demo) {
 
 void DemoImgui::init(WGPU *wgpu) {
     ImGui::CreateContext();
-    ImGui_ImplWGPU_InitInfo init_info;
+    ImGui_ImplWGPU_InitInfo init_info = {};
     init_info.Device = wgpu->device;
     init_info.NumFramesInFlight = 3;
     init_info.RenderTargetFormat = wgpu->surfaceFormat;
@@ -70,11 +70,12 @@ void DemoImgui::cleanup(WGPU *wgpu) {
     ImGui_ImplWGPU_Shutdown();
 }
 
-void DemoImgui::resize(WGPU *wgpu, uint32_t width, uint32_t height) {
+void DemoImgui::resize(WGPU *wgpu, uint32_t width, uint32_t height, float dpi) {
     ImGui_ImplWGPU_InvalidateDeviceObjects();
     ImGui_ImplWGPU_CreateDeviceObjects();
     ImGuiIO &io = ImGui::GetIO();
-    io.DisplaySize = ImVec2((float)width, (float)height);
+    io.DisplaySize = ImVec2((float)width/dpi, (float)height/dpi);
+    io.DisplayFramebufferScale = ImVec2(dpi, dpi);
 }
 
 
@@ -328,7 +329,8 @@ void DemoImgui::frame(WGPU *wgpu, WGPUTextureView frame) {
 
             const bool resize = (width != w.width) || (height != w.height);
             if (resize) {
-                w.window->resize(wgpu, width, height);
+                const float dpi = sapp_dpi_scale();
+                w.window->resize(wgpu, width, height, dpi);
                 w.width = width;
                 w.height = height;
 

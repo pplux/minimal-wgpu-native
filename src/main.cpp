@@ -2,7 +2,7 @@
 #include <memory>
 
 #include "demo.h"
-#include <wgpu/wgpu.h>
+#include "wgpu.h"
 
 #define SOKOL_NO_ENTRY 1
 #define SOKOL_APP_IMPL 1
@@ -43,8 +43,8 @@ std::unique_ptr<Demo> demo;
 void init(WGPU *wgpu) {
 
     // Specifics to wgpu-native
-    wgpuSetLogCallback([](WGPULogLevel level, const char *msg, void *){
-        fprintf(stderr, "WGPU [%d] %s\n", level, msg);
+    wgpuSetLogCallback([](WGPULogLevel level, WGPUStringView msg, void *){
+        fprintf(stderr, "WGPU [%d] %.*s\n", level, (int) msg.length, msg.data);
         }, nullptr);
     wgpuSetLogLevel(WGPULogLevel::WGPULogLevel_Error);
 
@@ -59,29 +59,35 @@ void init(WGPU *wgpu) {
         nativeSurfaceDescriptor.hwnd = (void*) sapp_win32_get_hwnd();
 #endif
 
-#ifdef __APPLE__
+#if defined(__APPLE__)
         id metal_layer = NULL;
         NSWindow *ns_window = reinterpret_cast<NSWindow*>(sapp_macos_get_window());
         [ns_window.contentView setWantsLayer:YES];
         metal_layer = [CAMetalLayer layer];
         [ns_window.contentView setLayer:metal_layer];
-        WGPUSurfaceDescriptorFromMetalLayer nativeSurfaceDescriptor = {};
-        nativeSurfaceDescriptor.layer = metal_layer;
-        nativeSurfaceDescriptor.chain.sType = WGPUSType_SurfaceDescriptorFromMetalLayer;
+        WGPUSurfaceSourceMetalLayer layer = {};
+        layer.layer = metal_layer;
+        layer.chain.sType = WGPUSType_SurfaceSourceMetalLayer;
 #endif
-
-        surfaceDescriptor.nextInChain = &nativeSurfaceDescriptor.chain;
+        surfaceDescriptor.nextInChain = &layer.chain;
         wgpu->platform->surface.object = wgpuInstanceCreateSurface(wgpu->platform->instance, &surfaceDescriptor);
     }
 
     { // Adapter (async)
         WGPURequestAdapterOptions adapterOptions = {};
         adapterOptions.compatibleSurface = wgpu->platform->surface.object;
-        wgpuInstanceRequestAdapter(wgpu->platform->instance, &adapterOptions, [](WGPURequestAdapterStatus status, WGPUAdapter adapter, char const * message, void * userdata){
-            WGPU *wgpu = static_cast<WGPU*>(userdata);
+        auto callbackfn = [](WGPURequestAdapterStatus status, WGPUAdapter adapter, WGPUStringView message, void* userdata1, void* userdata2) {
+            WGPU *wgpu = static_cast<WGPU*>(userdata1);
             wgpu->platform->adapter = adapter;
             requestDevice(wgpu);
-        }, wgpu);
+        };
+        WGPURequestAdapterCallbackInfo callback = {
+                .nextInChain = nullptr,
+                .mode =WGPUCallbackMode_AllowSpontaneous,
+                .callback = callbackfn,
+                .userdata1 = wgpu,
+        };
+        wgpuInstanceRequestAdapter(wgpu->platform->instance, &adapterOptions, callback);
     }
 }
 
@@ -108,15 +114,15 @@ void onDevice(WGPU *wgpu) {
     wgpu->surfaceFormat = config.viewFormats[0];
 
     demo->init(wgpu);
-    demo->resize(wgpu, config.width, config.height);
+    demo->resize(wgpu, config.width, config.height, sapp_dpi_scale());
 }
 
 void requestDevice(WGPU *wgpu) {
     WGPUDeviceDescriptor deviceDescriptor = {};
     switch(wgpu->requestedDeviceIndex) {
         case 0: // Performance tier
-        deviceDescriptor.label = "Performance";
-        deviceDescriptor.defaultQueue.label = "default";
+        deviceDescriptor.label = {"Performance", WGPU_STRLEN};
+        deviceDescriptor.defaultQueue.label = {"default", WGPU_STRLEN};
         break;
         // case 1 -> mid tier ...
         // case 2 -> low tier ...
@@ -124,15 +130,16 @@ void requestDevice(WGPU *wgpu) {
             fprintf(stderr, "Could not find a capable device after %d tries\n", wgpu->requestedDeviceIndex+1);
             exit(-1);
     }
-    deviceDescriptor.uncapturedErrorCallbackInfo.userdata = wgpu;
+    deviceDescriptor.uncapturedErrorCallbackInfo.userdata1 = wgpu;
     deviceDescriptor.uncapturedErrorCallbackInfo.callback =
-            [](WGPUErrorType type, const char *msg, void *userdata) {
-                WGPU *wgpu = static_cast<WGPU *>(userdata);
-                fprintf(stderr, "WGPU Device (%p) Error (type = 0x%x) %s\n", wgpu->device, type, msg ? msg : "");
+            [](WGPUDevice const * device, WGPUErrorType type, WGPUStringView message, WGPU_NULLABLE void* userdata1, WGPU_NULLABLE void* userdata2) {
+                WGPU *wgpu = static_cast<WGPU *>(userdata1);
+                fprintf(stderr, "WGPU Device (%p) Error (type = 0x%x) %.*s\n", wgpu->device, (unsigned int)type, (int)message.length, message.data);
             };
     // Request Device (Async)
-    wgpuAdapterRequestDevice(wgpu->platform->adapter, &deviceDescriptor, [](WGPURequestDeviceStatus status, WGPUDevice device, const char *message, void *userdata){
-        WGPU *wgpu = static_cast<WGPU*>(userdata);
+    WGPURequestDeviceCallbackInfo callback = {};
+    callback.callback = [](WGPURequestDeviceStatus status, WGPUDevice device, WGPUStringView message, WGPU_NULLABLE void* userdata1, WGPU_NULLABLE void* userdata2) {
+        WGPU *wgpu = static_cast<WGPU*>(userdata1);
         if (status == WGPURequestDeviceStatus_Success) {
             wgpu->device = device;
             onDevice(wgpu);
@@ -140,8 +147,9 @@ void requestDevice(WGPU *wgpu) {
         }
         wgpu->requestedDeviceIndex++;
         requestDevice(wgpu);
-    }, wgpu);
-
+    };
+    callback.userdata1 = wgpu;
+    wgpuAdapterRequestDevice(wgpu->platform->adapter, &deviceDescriptor, callback);
 }
 
 void cleanup(WGPU *wgpu) {
@@ -163,7 +171,7 @@ void frame(WGPU *wgpu) {
             wgpu->platform->surface.config.width = sapp_width();
             wgpu->platform->surface.config.height = sapp_height();
             wgpuSurfaceConfigure(wgpu->platform->surface.object, &wgpu->platform->surface.config);
-            demo->resize(wgpu, width, height);
+            demo->resize(wgpu, width, height, sapp_dpi_scale());
             return true;
         }
         return false;
@@ -175,7 +183,8 @@ void frame(WGPU *wgpu) {
     wgpuSurfaceGetCurrentTexture(wgpu->platform->surface.object, &surfaceTexture);
 
     switch (surfaceTexture.status) {
-        case WGPUSurfaceGetCurrentTextureStatus_Success:
+        case WGPUSurfaceGetCurrentTextureStatus_SuccessOptimal:
+        case WGPUSurfaceGetCurrentTextureStatus_SuccessSuboptimal:
             break;
         case WGPUSurfaceGetCurrentTextureStatus_Timeout:
         case WGPUSurfaceGetCurrentTextureStatus_Outdated:
@@ -189,6 +198,7 @@ void frame(WGPU *wgpu) {
         }
         case WGPUSurfaceGetCurrentTextureStatus_OutOfMemory:
         case WGPUSurfaceGetCurrentTextureStatus_DeviceLost:
+        case WGPUSurfaceGetCurrentTextureStatus_Error:
         case WGPUSurfaceGetCurrentTextureStatus_Force32:
             fprintf(stderr, "GetCurrentTexture Failed (0x%x)\n", surfaceTexture.status);
             exit(-1);
@@ -246,6 +256,7 @@ int main(int argc, char* argv[]) {
             .event_userdata_cb = [](const sapp_event *e, void *ptr){ demo->event(static_cast<WGPU*>(ptr), e); },
             .width = 1024,
             .height = 768,
+            .high_dpi = true,
             .window_title = "Minimal WGPU Native"
     };
 

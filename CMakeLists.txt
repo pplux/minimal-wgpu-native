@@ -5,11 +5,11 @@ if (NOT DEFINED EMSCRIPTEN)
 endif()
 project(minimal-wgpu-native)
 set(CMAKE_CXX_STANDARD 20)
-include_directories("src/imgui")
+include_directories("imgui")
 
 if(APPLE OR WIN32)
     # WGPU Version used & HASH ##############################
-    set(WGPU_VERSION "22.1.0.5")
+    set(WGPU_VERSION "24.0.0.1")
     set(WGPU_BUILD_TYPE "debug") # or release
     #########################################################
 

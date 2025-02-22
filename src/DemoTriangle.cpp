@@ -33,27 +33,27 @@ void DemoTriangle::init(WGPU *wgpu) {
         }
     )";
 
-    const WGPUShaderModuleWGSLDescriptor shaderCode = {.chain = {.sType = WGPUSType_ShaderModuleWGSLDescriptor}, .code = code };
+    const WGPUShaderSourceWGSL shaderCode = { .chain = { .sType = WGPUSType_ShaderSourceWGSL }, .code = {code, WGPU_STRLEN} };
     const WGPUShaderModuleDescriptor shaderModuleDescriptor = {
             .nextInChain = &shaderCode.chain,
-            .label = "Basic Triangle",
+            .label = {"Basic Triangle", WGPU_STRLEN},
     };
     const WGPUShaderModule shaderModule = wgpuDeviceCreateShaderModule(wgpu->device, &shaderModuleDescriptor);
     const WGPUPipelineLayoutDescriptor pipelineLayoutDescriptor = {
-            .label = "pipeline layout"
+            .label = {"pipeline layout", WGPU_STRLEN}
     };
     const WGPUPipelineLayout pipelineLayout = wgpuDeviceCreatePipelineLayout(wgpu->device, &pipelineLayoutDescriptor);
     const WGPUColorTargetState colorTargetStates = {.format = WGPUTextureFormat_RGBA8Unorm, .writeMask = WGPUColorWriteMask_All};
     const WGPUFragmentState fragment = {
             .module = shaderModule,
-            .entryPoint = "fs_main",
+            .entryPoint = {"fs_main", WGPU_STRLEN},
             .targetCount = 1,
             .targets = &colorTargetStates,
     };
     const WGPURenderPipelineDescriptor pipelineDescriptor = {
-            .label = "Render Triangle",
+            .label = {"Render Triangle", WGPU_STRLEN},
             .layout = pipelineLayout,
-            .vertex = { .module = shaderModule, .entryPoint = "vs_main"},
+            .vertex = { .module = shaderModule, .entryPoint = {"vs_main", WGPU_STRLEN}},
             .primitive = { .topology = WGPUPrimitiveTopology_TriangleList},
             .multisample = { .count = 1, .mask = 0xFFFFFFFF},
             .fragment = &fragment,
@@ -79,7 +79,7 @@ void DemoTriangle::resize(WGPU *wgpu, uint32_t width, uint32_t height) {
 }
 
 void DemoTriangle::frame(WGPU *wgpu, WGPUTextureView frame) {
-    WGPUCommandEncoderDescriptor commandEncoderDescriptor = {.label = "Frame"};
+    WGPUCommandEncoderDescriptor commandEncoderDescriptor = {.label = {"Frame", WGPU_STRLEN}};
     commandEncoder = wgpuDeviceCreateCommandEncoder(wgpu->device, &commandEncoderDescriptor);
 
     WGPURenderPassColorAttachment renderPassColorAttachment{
@@ -91,7 +91,7 @@ void DemoTriangle::frame(WGPU *wgpu, WGPUTextureView frame) {
 
     };
     WGPURenderPassDescriptor renderPass = {
-            .label = "Main Pass",
+            .label = {"Main Pass", WGPU_STRLEN},
             .colorAttachmentCount = 1,
             .colorAttachments = &renderPassColorAttachment,
     };
