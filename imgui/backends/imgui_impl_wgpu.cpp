@@ -17,6 +17,7 @@
 
 // CHANGELOG
 // (minor and older changes stripped away, please see git history for details)
+//  2025-02-26: Recreate image bind groups during render. (#8426, #8046, #7765, #8027) + Update for latest webgpu-native changes.
 //  2024-10-14: Update Dawn support for change of string usages. (#8082, #8083)
 //  2024-10-07: Expose selected render state in ImGui_ImplWGPU_RenderState, which you can access in 'void* platform_io.Renderer_RenderState' during draw callbacks.
 //  2024-10-07: Changed default texture sampler to Clamp instead of Repeat/Wrap.
@@ -40,6 +41,8 @@
 //  2021-02-18: Change blending equation to preserve alpha in output buffer.
 //  2021-01-28: Initial version.
 
+#include "imgui.h"
+
 // When targeting native platforms (i.e. NOT emscripten), one of IMGUI_IMPL_WEBGPU_BACKEND_DAWN
 // or IMGUI_IMPL_WEBGPU_BACKEND_WGPU must be provided. See imgui_impl_wgpu.h for more details.
 #ifndef __EMSCRIPTEN__
@@ -52,7 +55,6 @@
     #endif
 #endif
 
-#include "imgui.h"
 #ifndef IMGUI_DISABLE
 #include "imgui_impl_wgpu.h"
 #include <limits.h>
@@ -265,16 +267,27 @@ static WGPUProgrammableStageDescriptor ImGui_ImplWGPU_CreateShaderModule(const c
 {
     ImGui_ImplWGPU_Data* bd = ImGui_ImplWGPU_GetBackendData();
 
+#if defined(IMGUI_IMPL_WEBGPU_BACKEND_DAWN) || defined(IMGUI_IMPL_WEBGPU_BACKEND_WGPU)
     WGPUShaderSourceWGSL wgsl_desc = {};
     wgsl_desc.chain.sType = WGPUSType_ShaderSourceWGSL;
     wgsl_desc.code = { wgsl_source, WGPU_STRLEN };
+#else
+    WGPUShaderModuleWGSLDescriptor wgsl_desc = {};
+    wgsl_desc.chain.sType = WGPUSType_ShaderModuleWGSLDescriptor;
+    wgsl_desc.code = wgsl_source;
+#endif
 
     WGPUShaderModuleDescriptor desc = {};
     desc.nextInChain = reinterpret_cast<WGPUChainedStruct*>(&wgsl_desc);
 
     WGPUProgrammableStageDescriptor stage_desc = {};
     stage_desc.module = wgpuDeviceCreateShaderModule(bd->wgpuDevice, &desc);
+
+#if defined(IMGUI_IMPL_WEBGPU_BACKEND_DAWN) || defined(IMGUI_IMPL_WEBGPU_BACKEND_WGPU)
     stage_desc.entryPoint = { "main", WGPU_STRLEN };
+#else
+    stage_desc.entryPoint = "main";
+#endif
     return stage_desc;
 }
 
@@ -387,7 +400,9 @@ void ImGui_ImplWGPU_RenderDrawData(ImDrawData* draw_data, WGPURenderPassEncoder 
         {
             nullptr,
             "Dear ImGui Vertex buffer",
+#if defined(IMGUI_IMPL_WEBGPU_BACKEND_DAWN) || defined(IMGUI_IMPL_WEBGPU_BACKEND_WGPU)
             WGPU_STRLEN,
+#endif
             WGPUBufferUsage_CopyDst | WGPUBufferUsage_Vertex,
             MEMALIGN(fr->VertexBufferSize * sizeof(ImDrawVert), 4),
             false
@@ -412,7 +427,9 @@ void ImGui_ImplWGPU_RenderDrawData(ImDrawData* draw_data, WGPURenderPassEncoder 
         {
             nullptr,
             "Dear ImGui Index buffer",
+#if defined(IMGUI_IMPL_WEBGPU_BACKEND_DAWN) || defined(IMGUI_IMPL_WEBGPU_BACKEND_WGPU)
             WGPU_STRLEN,
+#endif
             WGPUBufferUsage_CopyDst | WGPUBufferUsage_Index,
             MEMALIGN(fr->IndexBufferSize * sizeof(ImDrawIdx), 4),
             false
@@ -475,18 +492,14 @@ void ImGui_ImplWGPU_RenderDrawData(ImDrawData* draw_data, WGPURenderPassEncoder 
             {
                 // Bind custom texture
                 ImTextureID tex_id = pcmd->GetTexID();
-                ImGuiID tex_id_hash = ImHashData(&tex_id, sizeof(tex_id));
-                auto bind_group = bd->renderResources.ImageBindGroups.GetVoidPtr(tex_id_hash);
-                if (bind_group)
+                ImGuiID tex_id_hash = ImHashData(&tex_id, sizeof(tex_id), 0);
+                WGPUBindGroup bind_group = (WGPUBindGroup)bd->renderResources.ImageBindGroups.GetVoidPtr(tex_id_hash);
+                if (!bind_group)
                 {
-                    wgpuRenderPassEncoderSetBindGroup(pass_encoder, 1, (WGPUBindGroup)bind_group, 0, nullptr);
+                    bind_group = ImGui_ImplWGPU_CreateImageBindGroup(bd->renderResources.ImageBindGroupLayout, (WGPUTextureView)tex_id);
+                    bd->renderResources.ImageBindGroups.SetVoidPtr(tex_id_hash, bind_group);
                 }
-                else
-                {
-                    WGPUBindGroup image_bind_group = ImGui_ImplWGPU_CreateImageBindGroup(bd->renderResources.ImageBindGroupLayout, (WGPUTextureView)tex_id);
-                    bd->renderResources.ImageBindGroups.SetVoidPtr(tex_id_hash, image_bind_group);
-                    wgpuRenderPassEncoderSetBindGroup(pass_encoder, 1, image_bind_group, 0, nullptr);
-                }
+                wgpuRenderPassEncoderSetBindGroup(pass_encoder, 1, (WGPUBindGroup)bind_group, 0, nullptr);
 
                 // Project scissor/clipping rectangles into framebuffer space
                 ImVec2 clip_min((pcmd->ClipRect.x - clip_off.x) * clip_scale.x, (pcmd->ClipRect.y - clip_off.y) * clip_scale.y);
@@ -509,15 +522,14 @@ void ImGui_ImplWGPU_RenderDrawData(ImDrawData* draw_data, WGPURenderPassEncoder 
         global_vtx_offset += draw_list->VtxBuffer.Size;
     }
 
-    { // Remove all ImageBindGroups
-        ImGuiStorage &images = bd->renderResources.ImageBindGroups;
-        const int total = images.Data.Size;
-        for (int i = 0; i < total; ++i) {
-            WGPUBindGroup bindGroup = (WGPUBindGroup)images.Data[i].val_p;
-            SafeRelease(bindGroup);
-        }
-        images.Clear();
+    // Remove all ImageBindGroups
+    ImGuiStorage& image_bind_groups = bd->renderResources.ImageBindGroups;
+    for (int i = 0; i < image_bind_groups.Data.Size; i++)
+    {
+        WGPUBindGroup bind_group = (WGPUBindGroup)image_bind_groups.Data[i].val_p;
+        SafeRelease(bind_group);
     }
+    image_bind_groups.Data.resize(0);
 
     platform_io.Renderer_RenderState = nullptr;
 }
@@ -534,7 +546,11 @@ static void ImGui_ImplWGPU_CreateFontsTexture()
     // Upload texture to graphics system
     {
         WGPUTextureDescriptor tex_desc = {};
+#if defined(IMGUI_IMPL_WEBGPU_BACKEND_DAWN) || defined(IMGUI_IMPL_WEBGPU_BACKEND_WGPU)
         tex_desc.label = { "Dear ImGui Font Texture", WGPU_STRLEN };
+#else
+        tex_desc.label = "Dear ImGui Font Texture";
+#endif
         tex_desc.dimension = WGPUTextureDimension_2D;
         tex_desc.size.width = width;
         tex_desc.size.height = height;
@@ -558,12 +574,20 @@ static void ImGui_ImplWGPU_CreateFontsTexture()
 
     // Upload texture data
     {
+#if defined(IMGUI_IMPL_WEBGPU_BACKEND_DAWN) || defined(IMGUI_IMPL_WEBGPU_BACKEND_WGPU)
         WGPUTexelCopyTextureInfo dst_view = {};
+#else
+        WGPUImageCopyTexture dst_view = {};
+#endif
         dst_view.texture = bd->renderResources.FontTexture;
         dst_view.mipLevel = 0;
         dst_view.origin = { 0, 0, 0 };
         dst_view.aspect = WGPUTextureAspect_All;
+#if defined(IMGUI_IMPL_WEBGPU_BACKEND_DAWN) || defined(IMGUI_IMPL_WEBGPU_BACKEND_WGPU)
         WGPUTexelCopyBufferLayout layout = {};
+#else
+        WGPUTextureDataLayout layout = {};
+#endif
         layout.offset = 0;
         layout.bytesPerRow = width * size_pp;
         layout.rowsPerImage = height;
@@ -597,7 +621,9 @@ static void ImGui_ImplWGPU_CreateUniformBuffer()
     {
         nullptr,
         "Dear ImGui Uniform buffer",
+#if defined(IMGUI_IMPL_WEBGPU_BACKEND_DAWN) || defined(IMGUI_IMPL_WEBGPU_BACKEND_WGPU)
         WGPU_STRLEN,
+#endif
         WGPUBufferUsage_CopyDst | WGPUBufferUsage_Uniform,
         MEMALIGN(sizeof(Uniforms), 16),
         false
@@ -661,9 +687,15 @@ bool ImGui_ImplWGPU_CreateDeviceObjects()
     // Vertex input configuration
     WGPUVertexAttribute attribute_desc[] =
     {
+#ifdef IMGUI_IMPL_WEBGPU_BACKEND_DAWN
+        { nullptr, WGPUVertexFormat_Float32x2, (uint64_t)offsetof(ImDrawVert, pos), 0 },
+        { nullptr, WGPUVertexFormat_Float32x2, (uint64_t)offsetof(ImDrawVert, uv),  1 },
+        { nullptr, WGPUVertexFormat_Unorm8x4,  (uint64_t)offsetof(ImDrawVert, col), 2 },
+#else
         { WGPUVertexFormat_Float32x2, (uint64_t)offsetof(ImDrawVert, pos), 0 },
         { WGPUVertexFormat_Float32x2, (uint64_t)offsetof(ImDrawVert, uv),  1 },
         { WGPUVertexFormat_Unorm8x4,  (uint64_t)offsetof(ImDrawVert, col), 2 },
+#endif
     };
 
     WGPUVertexBufferLayout buffer_layouts[1];
@@ -703,7 +735,11 @@ bool ImGui_ImplWGPU_CreateDeviceObjects()
     // Create depth-stencil State
     WGPUDepthStencilState depth_stencil_state = {};
     depth_stencil_state.format = bd->depthStencilFormat;
+#if defined(IMGUI_IMPL_WEBGPU_BACKEND_DAWN) || defined(IMGUI_IMPL_WEBGPU_BACKEND_WGPU)
     depth_stencil_state.depthWriteEnabled = WGPUOptionalBool_False;
+#else
+    depth_stencil_state.depthWriteEnabled = false;
+#endif
     depth_stencil_state.depthCompare = WGPUCompareFunction_Always;
     depth_stencil_state.stencilFront.compare = WGPUCompareFunction_Always;
     depth_stencil_state.stencilFront.failOp = WGPUStencilOperation_Keep;
