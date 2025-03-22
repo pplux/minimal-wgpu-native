@@ -43,7 +43,7 @@ void DemoTriangle::init(WGPU *wgpu) {
             .label = {"pipeline layout", WGPU_STRLEN}
     };
     const WGPUPipelineLayout pipelineLayout = wgpuDeviceCreatePipelineLayout(wgpu->device, &pipelineLayoutDescriptor);
-    const WGPUColorTargetState colorTargetStates = {.format = WGPUTextureFormat_RGBA8Unorm, .writeMask = WGPUColorWriteMask_All};
+    const WGPUColorTargetState colorTargetStates = {.format = WGPUTextureFormat_BGRA8UnormSrgb, .writeMask = WGPUColorWriteMask_All};
     const WGPUFragmentState fragment = {
             .module = shaderModule,
             .entryPoint = {"fs_main", WGPU_STRLEN},

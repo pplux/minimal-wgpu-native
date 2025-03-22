@@ -42,31 +42,44 @@ endif()
 include_directories(imgui)
 
 add_executable(
-        minimal-wgpu
+        minimal-wgpu-imgui
         src/main.cpp
         src/DemoImgui.cpp
         src/DemoTriangle.cpp
         src/demo.h)
 
-if(APPLE)
-    target_compile_options(minimal-wgpu PRIVATE -x objective-c++)
-    target_link_libraries(minimal-wgpu
-            "${wgpulib_SOURCE_DIR}/lib/libwgpu_native.a"
-            "-framework QuartzCore"
-            "-framework Cocoa"
-            "-framework MetalKit"
-            "-framework Metal")
-endif()
+add_executable(
+        minimal-wgpu
+        src/main.cpp
+        src/DemoTriangle.cpp
+        src/demo.h)
 
-if(WIN32)
-    target_link_libraries(minimal-wgpu "${wgpulib_SOURCE_DIR}/lib/wgpu_native.lib" Opengl32 ws2_32 D3DCompiler BCrypt Ntdll Userenv)
-    # Copy wgpu_native.dll where we produce the binary for the executable:
-    add_custom_command(TARGET minimal-wgpu POST_BUILD
-            COMMAND ${CMAKE_COMMAND} -E copy_if_different
-            ${wgpulib_SOURCE_DIR}/lib/wgpu_native.dll
-            $<TARGET_FILE_DIR:minimal-wgpu>
-    )
-endif()
+target_compile_definitions(minimal-wgpu-imgui PRIVATE MINIMAL_WGPU_IMGUI)
+
+macro(setup_app app)
+    if(APPLE)
+        target_compile_options(${app} PRIVATE -x objective-c++)
+        target_link_libraries(${app}
+                "${wgpulib_SOURCE_DIR}/lib/libwgpu_native.a"
+                "-framework QuartzCore"
+                "-framework Cocoa"
+                "-framework MetalKit"
+                "-framework Metal")
+    endif()
+
+    if(WIN32)
+        target_link_libraries(${app} "${wgpulib_SOURCE_DIR}/lib/wgpu_native.lib" Opengl32 ws2_32 D3DCompiler BCrypt Ntdll Userenv)
+        # Copy wgpu_native.dll where we produce the binary for the executable:
+        add_custom_command(TARGET ${app} POST_BUILD
+                COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                ${wgpulib_SOURCE_DIR}/lib/wgpu_native.dll
+                $<TARGET_FILE_DIR:minimal-wgpu>
+        )
+    endif()
+endmacro()
+
+setup_app(minimal-wgpu)
+setup_app(minimal-wgpu-imgui)
 
 if (EMSCRIPTEN)
     set(CMAKE_EXECUTABLE_SUFFIX ".html")

@@ -243,10 +243,14 @@ namespace {
 
 int main(int argc, char* argv[]) {
 
+#ifdef MINIMAL_WGPU_IMGUI
     demo = createDemoImgui();
     addDemoWindow(createDemoTriangle());
     addDemoWindow(createDemoTriangle());
     addDemoWindow(createDemoTriangle());
+#else
+    demo = createDemoTriangle();
+#endif
 
     sapp_desc sokolConfig = {
             .user_data = &wgpu,

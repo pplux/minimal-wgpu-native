@@ -348,13 +348,13 @@ void DemoImgui::frame(WGPU *wgpu, WGPUTextureView frame) {
                 descriptor.mipLevelCount = 1;
                 descriptor.sampleCount = 1;
                 descriptor.dimension = WGPUTextureDimension_2D;
-                descriptor.format = WGPUTextureFormat_RGBA8Unorm;
+                descriptor.format = WGPUTextureFormat_BGRA8UnormSrgb;
                 descriptor.usage = WGPUTextureUsage_RenderAttachment | WGPUTextureUsage_TextureBinding;
                 w.texture = wgpuDeviceCreateTexture(wgpu->device, &descriptor);
 
                 // Create a texture view
                 WGPUTextureViewDescriptor viewDescriptor = {};
-                viewDescriptor.format = WGPUTextureFormat_RGBA8Unorm;
+                viewDescriptor.format = WGPUTextureFormat_BGRA8UnormSrgb;
                 viewDescriptor.dimension = WGPUTextureViewDimension_2D;
                 viewDescriptor.mipLevelCount = 1;
                 viewDescriptor.arrayLayerCount = 1;

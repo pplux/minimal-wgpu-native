@@ -24,7 +24,9 @@ struct Demo {
     virtual void event(WGPU *wpgu, const sapp_event* ev) {}
 };
 
-std::unique_ptr<Demo> createDemoImgui();
 std::unique_ptr<Demo> createDemoTriangle();
 
+#ifdef MINIMAL_WGPU_IMGUI
+std::unique_ptr<Demo> createDemoImgui();
 void addDemoWindow(std::unique_ptr<Demo> &&demo);
+#endif
