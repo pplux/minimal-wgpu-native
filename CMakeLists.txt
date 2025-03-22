@@ -9,7 +9,7 @@ include_directories("imgui")
 
 if(APPLE OR WIN32)
     # WGPU Version used & HASH ##############################
-    set(WGPU_VERSION "24.0.0.1")
+    set(WGPU_VERSION "24.0.3.1")
     set(WGPU_BUILD_TYPE "debug") # or release
     #########################################################
 
