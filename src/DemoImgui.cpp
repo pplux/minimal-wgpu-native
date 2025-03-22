@@ -2,8 +2,14 @@
 #include "demo.h"
 #include "sokol_app.h"
 
+#ifndef __EMSCRIPTEN__
 #define IMGUI_IMPL_WEBGPU_BACKEND_WGPU
+#endif
+
 #define IMGUI_DEFINE_MATH_OPERATORS
+#include <iostream>
+#include <ostream>
+
 #include "imgui.h"
 #include "imgui.cpp"
 #include "imgui_draw.cpp"
@@ -58,6 +64,9 @@ void DemoImgui::init(WGPU *wgpu) {
     init_info.DepthStencilFormat = WGPUTextureFormat_Undefined;
     ImGui_ImplWGPU_Init(&init_info);
 
+    // Use RGBA8Unorm as render-to-texture for the sub-demos
+    WGPU copy = *wgpu;
+    copy.surfaceFormat = WGPUTextureFormat_RGBA8Unorm;
     for(auto &&w: windows) {
         w.window->init(wgpu);
     }
@@ -308,6 +317,8 @@ switch (ev->type) {
 
 
 void DemoImgui::frame(WGPU *wgpu, WGPUTextureView frame) {
+    ImGuiIO &io = ImGui::GetIO();
+
     bool invalidateObjects = false;
     ImGui_ImplWGPU_NewFrame();
     ImGui::NewFrame();

@@ -1,8 +1,12 @@
+#include <iostream>
 #include <thread>
-#include <memory>
 
 #include "demo.h"
+#include <webgpu/webgpu.h>
+
+#ifndef __EMSCRIPTEN__
 #include "wgpu.h"
+#endif
 
 #define SOKOL_NO_ENTRY 1
 #define SOKOL_APP_IMPL 1
@@ -105,8 +109,8 @@ void onDevice(WGPU *wgpu) {
     config.viewFormats = &config.format;
     config.presentMode = WGPUPresentMode_Fifo;
     config.alphaMode = surfaceCapabilities.alphaModes[0];
-    config.width = sapp_width();
-    config.height = sapp_height();
+    config.width = 1;
+    config.height = 1;
 
     wgpuSurfaceConfigure(wgpu->platform->surface.object, &wgpu->platform->surface.config);
     wgpuSurfaceCapabilitiesFreeMembers(surfaceCapabilities);
@@ -114,7 +118,7 @@ void onDevice(WGPU *wgpu) {
     wgpu->surfaceFormat = config.viewFormats[0];
 
     demo->init(wgpu);
-    demo->resize(wgpu, config.width, config.height, sapp_dpi_scale());
+    //demo->resize(wgpu, config.width, config.height, sapp_dpi_scale());
 }
 
 void requestDevice(WGPU *wgpu) {
@@ -220,7 +224,7 @@ void frame(WGPU *wgpu) {
 void init(WGPU *wgpu) {
     wgpu->device = (WGPUDevice) sapp_wgpu_get_device();
     wgpu->queue = wgpuDeviceGetQueue(wgpu->device);
-    wgpu->surfaceFormat =  _sapp.wgpu.render_format;
+    wgpu->surfaceFormat = _sapp.wgpu.render_format;
     demo->init(wgpu);
 }
 
@@ -229,6 +233,23 @@ void cleanup(WGPU *wgpu) {
 }
 
 void frame(WGPU *wgpu) {
+    auto reconfigureSurface = [wgpu]() -> bool {
+        static uint32_t width = 0;
+        uint32_t newWidth = sapp_width();
+        static uint32_t height = 0;
+        static uint32_t newHeight = sapp_height();
+        if (newWidth == 0 || newHeight == 0) return false;
+
+        if ((newWidth != width) || (newHeight != height)) {
+            width = newWidth;
+            height = newHeight;
+            demo->resize(wgpu, width, height, sapp_dpi_scale());
+            return true;
+        }
+        return false;
+    };
+
+   if (reconfigureSurface()) return;
    demo->frame(wgpu, (WGPUTextureView)(const_cast<void*>(sapp_wgpu_get_render_view())));
 }
 

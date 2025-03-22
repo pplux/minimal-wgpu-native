@@ -7,10 +7,10 @@ struct WGPUPlatform;
 
 struct WGPU {
     WGPUTextureFormat surfaceFormat;
-    WGPUDevice device;     // Specific GPU object with some capabilities
+    WGPUDevice device = nullptr;     // Specific GPU object with some capabilities
     uint32_t requestedDeviceIndex; // index of the requested device, represents the quality/performance tier
-    WGPUQueue queue;
-    WGPUPlatform *platform;
+    WGPUQueue queue = nullptr;
+    WGPUPlatform *platform = nullptr;
 };
 
 struct sapp_event; // defined in sokol_app.h

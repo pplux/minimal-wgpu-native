@@ -73,16 +73,16 @@ macro(setup_app app)
         add_custom_command(TARGET ${app} POST_BUILD
                 COMMAND ${CMAKE_COMMAND} -E copy_if_different
                 ${wgpulib_SOURCE_DIR}/lib/wgpu_native.dll
-                $<TARGET_FILE_DIR:minimal-wgpu>
+                $<TARGET_FILE_DIR:${app}>
         )
+    endif()
+
+    if (EMSCRIPTEN)
+        set(CMAKE_EXECUTABLE_SUFFIX ".html")
+        set_target_properties(${app} PROPERTIES COMPILE_FLAGS "-g -O0")
+        set_target_properties(${app} PROPERTIES LINK_FLAGS "-g -O0 -s USE_WEBGPU=1 -s WASM=1")
     endif()
 endmacro()
 
 setup_app(minimal-wgpu)
 setup_app(minimal-wgpu-imgui)
-
-if (EMSCRIPTEN)
-    set(CMAKE_EXECUTABLE_SUFFIX ".html")
-    set_target_properties(minimal-wgpu PROPERTIES COMPILE_FLAGS "-g -O0")
-    set_target_properties(minimal-wgpu PROPERTIES LINK_FLAGS "-g -O0 -s USE_WEBGPU=1 -s WASM=1")
-endif()
