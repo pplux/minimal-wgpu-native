@@ -64,9 +64,6 @@ void DemoImgui::init(WGPU *wgpu) {
     init_info.DepthStencilFormat = WGPUTextureFormat_Undefined;
     ImGui_ImplWGPU_Init(&init_info);
 
-    // Use RGBA8Unorm as render-to-texture for the sub-demos
-    WGPU copy = *wgpu;
-    copy.surfaceFormat = WGPUTextureFormat_RGBA8Unorm;
     for(auto &&w: windows) {
         w.window->init(wgpu);
     }
@@ -79,7 +76,7 @@ void DemoImgui::cleanup(WGPU *wgpu) {
     ImGui_ImplWGPU_Shutdown();
 }
 
-void DemoImgui::resize(WGPU *wgpu, uint32_t width, uint32_t height, float dpi) {
+void DemoImgui::resize(WGPU *, uint32_t width, uint32_t height, float dpi) {
     ImGui_ImplWGPU_InvalidateDeviceObjects();
     ImGui_ImplWGPU_CreateDeviceObjects();
     ImGuiIO &io = ImGui::GetIO();
@@ -88,7 +85,7 @@ void DemoImgui::resize(WGPU *wgpu, uint32_t width, uint32_t height, float dpi) {
 }
 
 
-void DemoImgui::event(WGPU *wpgu, const sapp_event* ev) {
+void DemoImgui::event(WGPU *, const sapp_event* ev) {
 const float dpi_scale = sapp_dpi_scale();
 ImGuiIO* io = &ImGui::GetIO();
 
@@ -359,13 +356,13 @@ void DemoImgui::frame(WGPU *wgpu, WGPUTextureView frame) {
                 descriptor.mipLevelCount = 1;
                 descriptor.sampleCount = 1;
                 descriptor.dimension = WGPUTextureDimension_2D;
-                descriptor.format = WGPUTextureFormat_BGRA8UnormSrgb;
+                descriptor.format = wgpu->surfaceFormat;
                 descriptor.usage = WGPUTextureUsage_RenderAttachment | WGPUTextureUsage_TextureBinding;
                 w.texture = wgpuDeviceCreateTexture(wgpu->device, &descriptor);
 
                 // Create a texture view
                 WGPUTextureViewDescriptor viewDescriptor = {};
-                viewDescriptor.format = WGPUTextureFormat_BGRA8UnormSrgb;
+                viewDescriptor.format = wgpu->surfaceFormat;
                 viewDescriptor.dimension = WGPUTextureViewDimension_2D;
                 viewDescriptor.mipLevelCount = 1;
                 viewDescriptor.arrayLayerCount = 1;

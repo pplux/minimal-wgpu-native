@@ -80,7 +80,7 @@ macro(setup_app app)
     if (EMSCRIPTEN)
         set(CMAKE_EXECUTABLE_SUFFIX ".html")
         set_target_properties(${app} PROPERTIES COMPILE_FLAGS "-g -O0")
-        set_target_properties(${app} PROPERTIES LINK_FLAGS "-g -O0 -s USE_WEBGPU=1 -s WASM=1")
+	set_target_properties(${app} PROPERTIES LINK_FLAGS "-g -O0 -s USE_WEBGPU=1 -s WASM=1 --shell-file=${CMAKE_SOURCE_DIR}/wasm/shell.html")
     endif()
 endmacro()
 
