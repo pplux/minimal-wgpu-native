@@ -64,8 +64,11 @@ void DemoImgui::init(WGPU *wgpu) {
     init_info.DepthStencilFormat = WGPUTextureFormat_Undefined;
     ImGui_ImplWGPU_Init(&init_info);
 
+    WGPU wgpuCopy = *wgpu;
+    wgpuCopy.surfaceFormat = WGPUTextureFormat_RGBA8Unorm;
+
     for(auto &&w: windows) {
-        w.window->init(wgpu);
+        w.window->init(&wgpuCopy);
     }
 }
 
@@ -324,6 +327,9 @@ void DemoImgui::frame(WGPU *wgpu, WGPUTextureView frame) {
     if (show_demo_window)
         ImGui::ShowDemoWindow(&show_demo_window);
 
+    WGPU wgpuCopy = *wgpu;
+    wgpuCopy.surfaceFormat = WGPUTextureFormat_RGBA8Unorm;
+
     for(auto &&w: windows) {
         if (ImGui::Begin(w.name.c_str())) {
             const ImVec2 size = ImGui::GetContentRegionAvail();
@@ -356,13 +362,13 @@ void DemoImgui::frame(WGPU *wgpu, WGPUTextureView frame) {
                 descriptor.mipLevelCount = 1;
                 descriptor.sampleCount = 1;
                 descriptor.dimension = WGPUTextureDimension_2D;
-                descriptor.format = wgpu->surfaceFormat;
+                descriptor.format = wgpuCopy.surfaceFormat;
                 descriptor.usage = WGPUTextureUsage_RenderAttachment | WGPUTextureUsage_TextureBinding;
                 w.texture = wgpuDeviceCreateTexture(wgpu->device, &descriptor);
 
                 // Create a texture view
                 WGPUTextureViewDescriptor viewDescriptor = {};
-                viewDescriptor.format = wgpu->surfaceFormat;
+                viewDescriptor.format = wgpuCopy.surfaceFormat;
                 viewDescriptor.dimension = WGPUTextureViewDimension_2D;
                 viewDescriptor.mipLevelCount = 1;
                 viewDescriptor.arrayLayerCount = 1;
@@ -370,7 +376,7 @@ void DemoImgui::frame(WGPU *wgpu, WGPUTextureView frame) {
                 viewDescriptor.baseMipLevel = 0;
                 w.view = wgpuTextureCreateView(w.texture, &viewDescriptor);
             }
-            w.window->frame(wgpu, w.view);
+            w.window->frame(&wgpuCopy, w.view);
             ImGui::Image((ImTextureID)w.view, size);
         }
         ImGui::End();
