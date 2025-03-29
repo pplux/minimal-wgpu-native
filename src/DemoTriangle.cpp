@@ -12,10 +12,6 @@ struct DemoTriangle : public Demo {
     virtual void cleanup(WGPU*);
     virtual void resize(WGPU*, uint32_t width, uint32_t height);
 
-#ifdef MINIMAL_WGPU_IMGUI
-    virtual void imgui();
-#endif
-
     WGPURenderPipeline pipeline;
 
     // Used
@@ -98,12 +94,6 @@ void DemoTriangle::cleanup(WGPU *) {
 
 void DemoTriangle::resize(WGPU *wgpu, uint32_t width, uint32_t height) {
 }
-
-#ifdef MINIMAL_WGPU_IMGUI
-void DemoTriangle::imgui() {
-    ImGui::Text("Demo Triangle");
-}
-#endif
 
 void DemoTriangle::frame(WGPU *wgpu, WGPUTextureView frame) {
     WGPUCommandEncoderDescriptor commandEncoderDescriptor = {.label = WGPU_C_STR("Frame")};

@@ -22,17 +22,17 @@ struct DemoWindow {
     uint32_t width = 0;
     uint32_t height = 0;
     bool opened = true;
-    std::string name;
     WGPUTexture texture = nullptr;
     WGPUTextureView view = {};
 };
 
 struct DemoImgui : public Demo {
-    virtual void init(WGPU*);
-    virtual void frame(WGPU*, WGPUTextureView);
-    virtual void cleanup(WGPU*);
-    virtual void resize(WGPU*, uint32_t width, uint32_t height, float dpi);
-    virtual void event(WGPU *wpgu, const sapp_event* ev);
+    void init(WGPU*) final;
+    void frame(WGPU*, WGPUTextureView) final;
+    void cleanup(WGPU*) final;
+    void resize(WGPU*, uint32_t width, uint32_t height, float dpi) final;
+    void event(WGPU *wpgu, const sapp_event* ev) final;
+    void imgui(WGPU*) final;
 
     std::vector<DemoWindow> windows;
 };
@@ -50,7 +50,7 @@ void addDemoWindow(std::unique_ptr<Demo> &&demo) {
     assert(imgui != nullptr);
     DemoWindow window = {};
     window.window = std::move(demo);
-    window.name = "Demo-" + std::to_string(imgui->windows.size());
+    window.window->demoImguiIndex = imgui->windows.size();
     imgui->windows.push_back(std::move(window));
 }
 
@@ -314,74 +314,72 @@ void DemoImgui::event(WGPU *, const sapp_event* ev) {
     }
 }
 
+void Demo::imguiShowFrame(WGPU *wgpu, ImVec2 size) {
+    const auto width = (uint32_t) size.x;
+    const auto height = (uint32_t) size.y;
+    const bool valid = (width > 0) && (height > 0);
+    if (!valid) {
+        return;
+    };
+    DemoWindow &w = ::imgui->windows[demoImguiIndex];
+    const bool resize = (width != w.width) || (height != w.height);
+    if (resize) {
+        const float dpi = sapp_dpi_scale();
+        w.window->resize(wgpu, width, height, dpi);
+        w.width = width;
+        w.height = height;
 
-void DemoImgui::frame(WGPU *wgpu, WGPUTextureView frame) {
-    ImGuiIO &io = ImGui::GetIO();
+        if (w.texture) {
+            wgpuTextureRelease(w.texture);
+            wgpuTextureViewRelease(w.view);
+        }
 
-    bool invalidateObjects = false;
-    ImGui_ImplWGPU_NewFrame();
-    ImGui::NewFrame();
-    static bool show_demo_window = true;
+        // Create a texture with the new size
+        WGPUTextureDescriptor descriptor = {};
+        descriptor.size.width = w.width;
+        descriptor.size.height = w.height;
+        descriptor.size.depthOrArrayLayers = 1;
+        descriptor.mipLevelCount = 1;
+        descriptor.sampleCount = 1;
+        descriptor.dimension = WGPUTextureDimension_2D;
+        descriptor.format = wgpu->surfaceFormat;
+        descriptor.usage = WGPUTextureUsage_RenderAttachment | WGPUTextureUsage_TextureBinding;
+        w.texture = wgpuDeviceCreateTexture(wgpu->device, &descriptor);
 
-    if (show_demo_window)
-        ImGui::ShowDemoWindow(&show_demo_window);
+        // Create a texture view
+        WGPUTextureViewDescriptor viewDescriptor = {};
+        viewDescriptor.format = wgpu->surfaceFormat;
+        viewDescriptor.dimension = WGPUTextureViewDimension_2D;
+        viewDescriptor.mipLevelCount = 1;
+        viewDescriptor.arrayLayerCount = 1;
+        viewDescriptor.baseArrayLayer = 0;
+        viewDescriptor.baseMipLevel = 0;
+        w.view = wgpuTextureCreateView(w.texture, &viewDescriptor);
+    }
+    frame(wgpu, w.view);
+    ImGui::Image((ImTextureID) w.view, size);
+}
 
+
+void DemoImgui::imgui(WGPU *wgpu) {
     WGPU wgpuCopy = *wgpu;
     wgpuCopy.surfaceFormat = WGPUTextureFormat_RGBA8Unorm;
 
     for(auto &&w: windows) {
-        if (ImGui::Begin(w.name.c_str())) {
-            w.window->imgui();
-            const ImVec2 size = ImGui::GetContentRegionAvail();
-            const auto width = (uint32_t) size.x;
-            const auto height = (uint32_t) size.y;
-            const bool valid = (width > 0) && (height > 0);
-            if (!valid) {
-                ImGui::End();
-                continue;
-            };
-
-            const bool resize = (width != w.width) || (height != w.height);
-            if (resize) {
-                const float dpi = sapp_dpi_scale();
-                w.window->resize(wgpu, width, height, dpi);
-                w.width = width;
-                w.height = height;
-
-                if (w.texture) {
-                    wgpuTextureRelease(w.texture);
-                    wgpuTextureViewRelease(w.view);
-                    invalidateObjects = true;
-                }
-
-                // Create a texture with the new size
-                WGPUTextureDescriptor descriptor = {};
-                descriptor.size.width = w.width;
-                descriptor.size.height = w.height;
-                descriptor.size.depthOrArrayLayers = 1;
-                descriptor.mipLevelCount = 1;
-                descriptor.sampleCount = 1;
-                descriptor.dimension = WGPUTextureDimension_2D;
-                descriptor.format = wgpuCopy.surfaceFormat;
-                descriptor.usage = WGPUTextureUsage_RenderAttachment | WGPUTextureUsage_TextureBinding;
-                w.texture = wgpuDeviceCreateTexture(wgpu->device, &descriptor);
-
-                // Create a texture view
-                WGPUTextureViewDescriptor viewDescriptor = {};
-                viewDescriptor.format = wgpuCopy.surfaceFormat;
-                viewDescriptor.dimension = WGPUTextureViewDimension_2D;
-                viewDescriptor.mipLevelCount = 1;
-                viewDescriptor.arrayLayerCount = 1;
-                viewDescriptor.baseArrayLayer = 0;
-                viewDescriptor.baseMipLevel = 0;
-                w.view = wgpuTextureCreateView(w.texture, &viewDescriptor);
-            }
-            w.window->frame(&wgpuCopy, w.view);
-            ImGui::Image((ImTextureID)w.view, size);
-        }
-        ImGui::End();
+        w.window->imgui(&wgpuCopy);
     }
 
+    static bool show_demo_window = true;
+
+    if (show_demo_window)
+        ImGui::ShowDemoWindow(&show_demo_window);
+}
+
+
+void DemoImgui::frame(WGPU *wgpu, WGPUTextureView frame) {
+    ImGui_ImplWGPU_NewFrame();
+    ImGui::NewFrame();
+    imgui(wgpu);
     ImGui::Render();
 
     WGPURenderPassColorAttachment color_attachments = {};
@@ -412,9 +410,5 @@ void DemoImgui::frame(WGPU *wgpu, WGPUTextureView frame) {
 
     wgpuCommandBufferRelease(cmd_buffer);
     wgpuCommandEncoderRelease(encoder);
-
-    if (invalidateObjects) {
-        ImGui_ImplWGPU_InvalidateDeviceObjects();
-    }
 }
 
