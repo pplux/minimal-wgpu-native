@@ -15,24 +15,47 @@ struct DemoFragment : public Demo {
     void init(WGPU*) override;
     void frame(WGPU*, WGPUTextureView) override;
     void cleanup(WGPU*) override;
-    void resize(WGPU*, uint32_t width, uint32_t height, float dpi) override;
 
 #ifdef MINIMAL_WGPU_IMGUI
     void imgui(WGPU*) override;
 #endif
 
+    void rebuild(WGPU*);
+
     WGPURenderPipeline pipeline;
     WGPUShaderModule vertexShaderModule = {};
 
-    std::string fragmentCode;
+    char fragmentCode[65536];
 };
 
 std::unique_ptr<Demo> createDemoFragment() {
     return std::make_unique<DemoFragment>();
 }
 
+
+WGPUShaderModule createShaderModule(WGPU *wgpu, const char *code) {
+#ifdef __EMSCRIPTEN__
+    const WGPUShaderModuleWGSLDescriptor shaderCode = {
+        .chain = { .sType =  WGPUSType_ShaderModuleWGSLDescriptor },
+        .code = WGPU_C_STR(code) };
+#else
+    const WGPUShaderSourceWGSL shaderCode = {
+        .chain = { .sType = WGPUSType_ShaderSourceWGSL },
+        .code = WGPU_C_STR(code) };
+#endif
+
+
+    const WGPUShaderModuleDescriptor shaderModuleDescriptor = {
+            .nextInChain = &shaderCode.chain,
+            .label = WGPU_C_STR("Basic Fragment"),
+    };
+    const WGPUShaderModule shaderModule = wgpuDeviceCreateShaderModule(wgpu->device, &shaderModuleDescriptor);
+    return shaderModule;
+};
+
 void DemoFragment::init(WGPU *wgpu) {
-    static const char *code = R"(
+    vertexShaderModule = createShaderModule(wgpu,
+    R"(
         @vertex
         fn vs_main(@builtin(vertex_index) in_vertex_index: u32) -> @builtin(position) vec4<f32> {
             // Oversized triangle to fill the screen
@@ -43,37 +66,20 @@ void DemoFragment::init(WGPU *wgpu) {
             return vec4<f32>(positions[in_vertex_index], 0.0, 1.0);
         }
 
-    )";
+    )");
 
-    fragmentCode = R"(
-        @fragment
-        fn fs_main() -> @location(0) vec4<f32> {
-            return vec4<f32>(1.0, 0.0, 0.0, 1.0);
-        }
-        )";
+    const char *initialFragmentCode = "@fragment\nfn fs_main() -> @location(0) vec4<f32>\n{\n  return vec4<f32>(1.0, 0.0, 0.0, 1.0);\n}\n";
 
-    auto createShaderModule = [wgpu](const char *code) -> WGPUShaderModule {
-    #ifdef __EMSCRIPTEN__
-        const WGPUShaderModuleWGSLDescriptor shaderCode = {
-            .chain = { .sType =  WGPUSType_ShaderModuleWGSLDescriptor },
-            .code = WGPU_C_STR(code) };
-    #else
-        const WGPUShaderSourceWGSL shaderCode = {
-            .chain = { .sType = WGPUSType_ShaderSourceWGSL },
-            .code = WGPU_C_STR(code) };
-    #endif
+    memcpy(fragmentCode, initialFragmentCode, strlen(initialFragmentCode)+1);
+    rebuild(wgpu);
+}
 
+void DemoFragment::rebuild(WGPU *wgpu) {
+    if (pipeline) {
+        wgpuRenderPipelineRelease(pipeline);
+    }
 
-        const WGPUShaderModuleDescriptor shaderModuleDescriptor = {
-                .nextInChain = &shaderCode.chain,
-                .label = WGPU_C_STR("Basic Fragment"),
-        };
-        const WGPUShaderModule shaderModule = wgpuDeviceCreateShaderModule(wgpu->device, &shaderModuleDescriptor);
-        return shaderModule;
-    };
-
-    vertexShaderModule = createShaderModule(code);
-    WGPUShaderModule fragmentModule = createShaderModule(fragmentCode.c_str());
+    WGPUShaderModule fragmentModule = createShaderModule(wgpu, fragmentCode);
 
     const WGPUPipelineLayoutDescriptor pipelineLayoutDescriptor = {
             .label = WGPU_C_STR("pipeline layout")
@@ -105,9 +111,6 @@ void DemoFragment::init(WGPU *wgpu) {
 void DemoFragment::cleanup(WGPU *) {
     wgpuRenderPipelineRelease(pipeline);
     wgpuShaderModuleRelease(vertexShaderModule);
-}
-
-void DemoFragment::resize(WGPU *wgpu, uint32_t width, uint32_t height, float) {
 }
 
 void DemoFragment::frame(WGPU *wgpu, WGPUTextureView frame) {
@@ -146,7 +149,10 @@ void DemoFragment::imgui(WGPU *wgpu) {
     char name[64];
     snprintf(name, sizeof(name), "Demo %d", demoImguiIndex);
     if (ImGui::Begin(name)) {
-        imguiShowFrame(wgpu, {ImGui::GetContentRegionAvail().x , 256});
+        const float width = ImGui::GetContentRegionAvail().x;
+        imguiShowFrame(wgpu, {width, 256});
+        ImGui::InputTextMultiline("###FragmentCode", fragmentCode, sizeof(fragmentCode), {width, 256});
+        if (ImGui::Button("reload")) { rebuild(wgpu); }
         ImGui::End();
     }
 }

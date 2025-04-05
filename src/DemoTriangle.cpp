@@ -14,7 +14,6 @@ struct DemoTriangle : public Demo {
     void init(WGPU*) override;
     void frame(WGPU*, WGPUTextureView) override;
     void cleanup(WGPU*) override;
-    void resize(WGPU*, uint32_t width, uint32_t height, float dpi) override;
 
 #ifdef MINIMAL_WGPU_IMGUI
     void imgui(WGPU*) override;
@@ -94,9 +93,6 @@ void DemoTriangle::init(WGPU *wgpu) {
 
 void DemoTriangle::cleanup(WGPU *) {
     wgpuRenderPipelineRelease(pipeline);
-}
-
-void DemoTriangle::resize(WGPU *wgpu, uint32_t width, uint32_t height, float) {
 }
 
 void DemoTriangle::frame(WGPU *wgpu, WGPUTextureView frame) {
