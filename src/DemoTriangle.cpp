@@ -1,5 +1,9 @@
 #include "demo.h"
 
+#ifdef MINIMAL_WGPU_IMGUI
+#include "imgui.h"
+#endif
+
 #ifndef __EMSCRIPTEN__
 #define WGPU_C_STR(value) { value, WGPU_STRLEN }
 #else
@@ -7,10 +11,14 @@
 #endif
 
 struct DemoTriangle : public Demo {
-    virtual void init(WGPU*);
-    virtual void frame(WGPU*, WGPUTextureView);
-    virtual void cleanup(WGPU*);
-    virtual void resize(WGPU*, uint32_t width, uint32_t height);
+    void init(WGPU*) override;
+    void frame(WGPU*, WGPUTextureView) override;
+    void cleanup(WGPU*) override;
+    void resize(WGPU*, uint32_t width, uint32_t height, float dpi) override;
+
+#ifdef MINIMAL_WGPU_IMGUI
+    void imgui(WGPU*) override;
+#endif
 
     WGPURenderPipeline pipeline;
 
@@ -92,7 +100,7 @@ void DemoTriangle::cleanup(WGPU *) {
     wgpuRenderPipelineRelease(pipeline);
 }
 
-void DemoTriangle::resize(WGPU *wgpu, uint32_t width, uint32_t height) {
+void DemoTriangle::resize(WGPU *wgpu, uint32_t width, uint32_t height, float) {
 }
 
 void DemoTriangle::frame(WGPU *wgpu, WGPUTextureView frame) {
@@ -126,5 +134,19 @@ void DemoTriangle::frame(WGPU *wgpu, WGPUTextureView frame) {
     wgpuCommandBufferRelease(commandBuffer);
     wgpuCommandEncoderRelease(commandEncoder);
 }
+
+
+#ifdef MINIMAL_WGPU_IMGUI
+void DemoTriangle::imgui(WGPU *wgpu) {
+    char name[64];
+    snprintf(name, sizeof(name), "Demo %d", demoImguiIndex);
+    if (ImGui::Begin(name)) {
+        imguiShowFrame(wgpu, {ImGui::GetContentRegionAvail().x , 256});
+        ImGui::ColorEdit3("Background Color", bgColor);
+        ImVec4 color = ImVec4(bgColor[0], bgColor[1], bgColor[2], 1.0f);
+        ImGui::End();
+    }
+}
+#endif
 
 ADD_DEMO_WINDOW(triangle, createDemoTriangle)
