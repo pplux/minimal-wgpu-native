@@ -41,22 +41,6 @@ endif()
 
 include_directories(imgui)
 
-add_executable( minimal-wgpu-imgui
-        src/demo.h
-        src/main.cpp
-        src/DemoImgui.cpp
-        src/DemoTriangle.cpp
-)
-target_compile_definitions(minimal-wgpu-imgui PRIVATE MINIMAL_WGPU_IMGUI=1)
-target_compile_definitions(minimal-wgpu-imgui PRIVATE MINIMAL_WGPU_DEMO=imgui)
-
-add_executable( minimal-wgpu-triangle
-        src/demo.h
-        src/main.cpp
-        src/DemoTriangle.cpp
-)
-target_compile_definitions(minimal-wgpu-triangle PRIVATE MINIMAL_WGPU_DEMO=triangle)
-
 macro(setup_app app)
     if(APPLE)
         target_compile_options(${app} PRIVATE -x objective-c++)
@@ -85,5 +69,31 @@ macro(setup_app app)
     endif()
 endmacro()
 
+
+add_executable( minimal-wgpu-imgui
+        src/demo.h
+        src/main.cpp
+        src/DemoImgui.cpp
+        src/DemoTriangle.cpp
+        src/DemoFragment.cpp
+)
+target_compile_definitions(minimal-wgpu-imgui PRIVATE MINIMAL_WGPU_IMGUI=1)
+target_compile_definitions(minimal-wgpu-imgui PRIVATE MINIMAL_WGPU_DEMO=imgui)
+
+add_executable( minimal-wgpu-triangle
+        src/demo.h
+        src/main.cpp
+        src/DemoTriangle.cpp
+)
+target_compile_definitions(minimal-wgpu-triangle PRIVATE MINIMAL_WGPU_DEMO=triangle)
+
+add_executable( minimal-wgpu-fragment
+        src/demo.h
+        src/main.cpp
+        src/DemoFragment.cpp
+)
+target_compile_definitions(minimal-wgpu-fragment PRIVATE MINIMAL_WGPU_DEMO=fragment)
+
 setup_app(minimal-wgpu-triangle)
+setup_app(minimal-wgpu-fragment)
 setup_app(minimal-wgpu-imgui)
