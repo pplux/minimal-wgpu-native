@@ -46,13 +46,6 @@ std::unique_ptr<Demo> createDemoImgui() {
     return std::move(demo);
 }
 
-void addDemoWindow(std::unique_ptr<Demo> &&demo) {
-    assert(imgui != nullptr);
-    DemoWindow window = {};
-    window.window = std::move(demo);
-    window.window->demoImguiIndex = imgui->windows.size();
-    imgui->windows.push_back(std::move(window));
-}
 
 void DemoImgui::init(WGPU *wgpu) {
     ImGui::CreateContext();
@@ -365,6 +358,20 @@ void DemoImgui::imgui(WGPU *wgpu) {
     WGPU wgpuCopy = *wgpu;
     wgpuCopy.surfaceFormat = WGPUTextureFormat_RGBA8Unorm;
 
+    if (ImGui::Begin("Demos")) {
+        for (auto &i: demo_builders) {
+            if (strcmp(i.name, "imgui") == 0) continue; // skip ourselves! :P
+            if (ImGui::Button(i.name)) {
+                DemoWindow window = {};
+                window.window = i.func();
+                window.window->demoImguiIndex = windows.size();
+                window.window->init(&wgpuCopy);
+                windows.push_back(std::move(window));
+            }
+        }
+        ImGui::End();
+    }
+
     for(auto &&w: windows) {
         w.window->imgui(&wgpuCopy);
     }
@@ -412,3 +419,4 @@ void DemoImgui::frame(WGPU *wgpu, WGPUTextureView frame) {
     wgpuCommandEncoderRelease(encoder);
 }
 
+ADD_DEMO_WINDOW(imgui, createDemoImgui)

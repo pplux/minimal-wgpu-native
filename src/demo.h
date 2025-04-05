@@ -2,6 +2,7 @@
 
 #include <webgpu/webgpu.h>
 #include <memory>
+#include <vector>
 
 #ifdef MINIMAL_WGPU_IMGUI
 #include <cstdio>
@@ -57,9 +58,14 @@ struct Demo {
     virtual void event(WGPU *wpgu, const sapp_event* ev) {}
 };
 
-std::unique_ptr<Demo> createDemoTriangle();
 
-#ifdef MINIMAL_WGPU_IMGUI
-std::unique_ptr<Demo> createDemoImgui();
-void addDemoWindow(std::unique_ptr<Demo> &&demo);
-#endif
+struct DemoBuilder {
+    const char *name;
+    std::unique_ptr<Demo> (*func) ();
+};
+extern std::vector<DemoBuilder> demo_builders;
+
+#define ADD_DEMO_WINDOW(name, func) \
+    static struct initializer_##name  {\
+        initializer_##name() { demo_builders.push_back({#name, func}); } \
+    } initializerInstance_##name;

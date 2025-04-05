@@ -126,3 +126,5 @@ void DemoTriangle::frame(WGPU *wgpu, WGPUTextureView frame) {
     wgpuCommandBufferRelease(commandBuffer);
     wgpuCommandEncoderRelease(commandEncoder);
 }
+
+ADD_DEMO_WINDOW(triangle, createDemoTriangle)

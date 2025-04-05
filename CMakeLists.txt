@@ -41,20 +41,21 @@ endif()
 
 include_directories(imgui)
 
-add_executable(
-        minimal-wgpu-imgui
+add_executable( minimal-wgpu-imgui
+        src/demo.h
         src/main.cpp
         src/DemoImgui.cpp
         src/DemoTriangle.cpp
-        src/demo.h)
+)
+target_compile_definitions(minimal-wgpu-imgui PRIVATE MINIMAL_WGPU_IMGUI=1)
+target_compile_definitions(minimal-wgpu-imgui PRIVATE MINIMAL_WGPU_DEMO=imgui)
 
-add_executable(
-        minimal-wgpu
+add_executable( minimal-wgpu-triangle
+        src/demo.h
         src/main.cpp
         src/DemoTriangle.cpp
-        src/demo.h)
-
-target_compile_definitions(minimal-wgpu-imgui PRIVATE MINIMAL_WGPU_IMGUI)
+)
+target_compile_definitions(minimal-wgpu-triangle PRIVATE MINIMAL_WGPU_DEMO=triangle)
 
 macro(setup_app app)
     if(APPLE)
@@ -84,5 +85,5 @@ macro(setup_app app)
     endif()
 endmacro()
 
-setup_app(minimal-wgpu)
+setup_app(minimal-wgpu-triangle)
 setup_app(minimal-wgpu-imgui)

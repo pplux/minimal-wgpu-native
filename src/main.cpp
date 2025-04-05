@@ -262,16 +262,24 @@ namespace {
     WGPU wgpu = {.platform = &platform};
 }
 
+std::vector<DemoBuilder> demo_builders;
+
+#define TO_STRING(x) TO_STRING2(x)
+#define TO_STRING2(x) #x
+
 int main(int argc, char* argv[]) {
 
-#ifdef MINIMAL_WGPU_IMGUI
-    demo = createDemoImgui();
-    addDemoWindow(createDemoTriangle());
-    addDemoWindow(createDemoTriangle());
-    addDemoWindow(createDemoTriangle());
-#else
-    demo = createDemoTriangle();
-#endif
+    for (auto &i : demo_builders) {
+        if (strcmp(i.name, TO_STRING(MINIMAL_WGPU_DEMO)) == 0) {
+            demo = i.func();
+            break;
+        }
+    }
+
+    if (!demo) {
+        std::cerr << "No demo found with name" TO_STRING(MINIMAL_WGPU_DEMO) "!" << std::endl;
+        return -1;
+    }
 
     sapp_desc sokolConfig = {
             .user_data = &wgpu,
