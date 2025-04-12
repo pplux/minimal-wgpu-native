@@ -33,6 +33,15 @@ struct DemoImgui : public Demo {
     void resize(WGPU*, uint32_t width, uint32_t height, float dpi) final;
     void event(WGPU *wpgu, const sapp_event* ev) final;
     void imgui(WGPU*) final;
+    void onError(WGPU *wgpu, const char *message) final {
+        if (currentDemoWindow) {
+            currentDemoWindow->window->onError(wgpu, message);
+        } else {
+            Demo::onError(wgpu, message);
+        }
+    }
+
+    DemoWindow *currentDemoWindow = nullptr;
 
     std::vector<DemoWindow> windows;
 };
@@ -60,14 +69,18 @@ void DemoImgui::init(WGPU *wgpu) {
     wgpuCopy.surfaceFormat = WGPUTextureFormat_RGBA8Unorm;
 
     for(auto &&w: windows) {
+        currentDemoWindow = &w;
         w.window->init(&wgpuCopy);
     }
+    currentDemoWindow = nullptr;
 }
 
 void DemoImgui::cleanup(WGPU *wgpu) {
     for(auto &&w: windows) {
+        currentDemoWindow = &w;
         w.window->cleanup(wgpu);
     }
+    currentDemoWindow = nullptr;
     ImGui_ImplWGPU_Shutdown();
 }
 
@@ -373,8 +386,10 @@ void DemoImgui::imgui(WGPU *wgpu) {
     }
 
     for(auto &&w: windows) {
+        currentDemoWindow = &w;
         w.window->imgui(&wgpuCopy);
     }
+    currentDemoWindow = nullptr;
 
     static bool show_demo_window = true;
 

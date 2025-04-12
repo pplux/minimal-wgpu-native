@@ -1,7 +1,9 @@
 #pragma once
 
+#include <iostream>
 #include <webgpu/webgpu.h>
 #include <memory>
+#include <ostream>
 #include <vector>
 
 #ifdef MINIMAL_WGPU_IMGUI
@@ -51,6 +53,10 @@ struct Demo {
     virtual void frame(WGPU*, WGPUTextureView) {}
 
     virtual void cleanup(WGPU*) {}
+
+    virtual void onError(WGPU*, const char* message) {
+        std::cerr << "Error:" << message << std::endl;
+    }
 
     // Note: if we are rendering with Imgui, this function never gets called, you should use
     //       ImGui::IO instead. Otherwise, if we are rendering a single themo this function will

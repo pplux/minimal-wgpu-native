@@ -138,7 +138,9 @@ void requestDevice(WGPU *wgpu) {
     deviceDescriptor.uncapturedErrorCallbackInfo.callback =
             [](WGPUDevice const * device, WGPUErrorType type, WGPUStringView message, WGPU_NULLABLE void* userdata1, WGPU_NULLABLE void* userdata2) {
                 WGPU *wgpu = static_cast<WGPU *>(userdata1);
-                fprintf(stderr, "WGPU Device (%p) Error (type = 0x%x) %.*s\n", wgpu->device, (unsigned int)type, (int)message.length, message.data);
+                char buffer[1024] = {};
+                snprintf(buffer, sizeof(buffer), "WGPU Device (%p) Error (type = 0x%x) %.*s\n", wgpu->device, (unsigned int)type, (int)message.length, message.data);
+                demo->onError(wgpu, buffer);
             };
     // Request Device (Async)
     WGPURequestDeviceCallbackInfo callback = {};

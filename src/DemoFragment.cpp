@@ -1,5 +1,6 @@
 #include "demo.h"
 #include <string>
+#include <__chrono/calendar.h>
 
 #ifdef MINIMAL_WGPU_IMGUI
 #include "imgui.h"
@@ -15,6 +16,7 @@ struct DemoFragment : public Demo {
     void init(WGPU*) override;
     void frame(WGPU*, WGPUTextureView) override;
     void cleanup(WGPU*) override;
+    void onError(WGPU *, const char *message) override;
 
 #ifdef MINIMAL_WGPU_IMGUI
     void imgui(WGPU*) override;
@@ -22,6 +24,7 @@ struct DemoFragment : public Demo {
 
     void rebuild(WGPU*);
 
+    std::string lastError = {};
     WGPURenderPipeline pipeline;
     WGPUShaderModule vertexShaderModule = {};
 
@@ -44,12 +47,15 @@ WGPUShaderModule createShaderModule(WGPU *wgpu, const char *code) {
         .code = WGPU_C_STR(code) };
 #endif
 
-
     const WGPUShaderModuleDescriptor shaderModuleDescriptor = {
             .nextInChain = &shaderCode.chain,
             .label = WGPU_C_STR("Basic Fragment"),
     };
-    const WGPUShaderModule shaderModule = wgpuDeviceCreateShaderModule(wgpu->device, &shaderModuleDescriptor);
+
+    // Note: wgpuShaderModuleGetCompilationInfo is not implemented in native, but the device will trigger an
+    //       error. And we can use that to invalidate the shader.
+
+    WGPUShaderModule shaderModule = wgpuDeviceCreateShaderModule(wgpu->device, &shaderModuleDescriptor);
     return shaderModule;
 };
 
@@ -75,11 +81,20 @@ void DemoFragment::init(WGPU *wgpu) {
 }
 
 void DemoFragment::rebuild(WGPU *wgpu) {
+
+    lastError = "";
+    WGPUShaderModule fragmentModule = createShaderModule(wgpu, fragmentCode);
+    if (!lastError.empty()) {
+        if (fragmentModule) {
+            wgpuShaderModuleRelease(fragmentModule);
+        }
+        // ERROR!
+        return;
+    }
+
     if (pipeline) {
         wgpuRenderPipelineRelease(pipeline);
     }
-
-    WGPUShaderModule fragmentModule = createShaderModule(wgpu, fragmentCode);
 
     const WGPUPipelineLayoutDescriptor pipelineLayoutDescriptor = {
             .label = WGPU_C_STR("pipeline layout")
@@ -106,6 +121,11 @@ void DemoFragment::rebuild(WGPU *wgpu) {
     pipeline = wgpuDeviceCreateRenderPipeline(wgpu->device, &pipelineDescriptor);
     wgpuShaderModuleRelease(fragmentModule);
     wgpuPipelineLayoutRelease(pipelineLayout);
+}
+
+
+void DemoFragment::onError(WGPU *, const char *message) {
+    lastError = message;
 }
 
 void DemoFragment::cleanup(WGPU *) {
@@ -153,6 +173,10 @@ void DemoFragment::imgui(WGPU *wgpu) {
         imguiShowFrame(wgpu, {width, 256});
         ImGui::InputTextMultiline("###FragmentCode", fragmentCode, sizeof(fragmentCode), {width, 256});
         if (ImGui::Button("reload")) { rebuild(wgpu); }
+        if (!lastError.empty()) {
+            ImGui::Text("ERROR!");
+            ImGui::TextUnformatted(lastError.c_str(), lastError.c_str()+lastError.length());
+        }
         ImGui::End();
     }
 }
