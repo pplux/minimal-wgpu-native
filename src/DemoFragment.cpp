@@ -23,6 +23,9 @@ struct DemoFragment : public Demo {
 #endif
 
     void rebuild(WGPU*);
+    void rebuildDone(WGPU*);
+
+    WGPUShaderModule fragmentModule = {};
 
     std::string lastError = {};
     WGPURenderPipeline pipeline;
@@ -81,46 +84,39 @@ void DemoFragment::init(WGPU *wgpu) {
 }
 
 void DemoFragment::rebuild(WGPU *wgpu) {
-
     lastError = "";
-    WGPUShaderModule fragmentModule = createShaderModule(wgpu, fragmentCode);
-    if (!lastError.empty()) {
-        if (fragmentModule) {
-            wgpuShaderModuleRelease(fragmentModule);
+    fragmentModule = createShaderModule(wgpu, fragmentCode);
+    // On WASM we trigger the check of the shader asynchronously
+    // on Native, wgpu lib will generate an error, that we will capture on "lastError"
+    //
+    // On both cases, we wait until next frame to try to use the new fragmentModule, until we know
+    // there if there's an error or not.
+#ifdef __EMSCRIPTEN__
+    WGPUCompilationInfoCallback info = {};
+
+    info = [](WGPUCompilationInfoRequestStatus status, struct WGPUCompilationInfo const *info, void* userdata1) {
+        auto demo = reinterpret_cast<DemoFragment*>(userdata1);
+
+        if (status != WGPUCompilationInfoRequestStatus_Success) {
+            std::cerr << "Failed to get shader compilation info.\n";
+            return;
         }
-        // ERROR!
-        return;
-    }
 
-    if (pipeline) {
-        wgpuRenderPipelineRelease(pipeline);
-    }
+        for (uint32_t i = 0; i < info->messageCount; ++i) {
+            const WGPUCompilationMessage& msg = info->messages[i];
 
-    const WGPUPipelineLayoutDescriptor pipelineLayoutDescriptor = {
-            .label = WGPU_C_STR("pipeline layout")
-    };
-    const WGPUPipelineLayout pipelineLayout = wgpuDeviceCreatePipelineLayout(wgpu->device, &pipelineLayoutDescriptor);
-    const WGPUColorTargetState colorTargetStates = {.format = wgpu->surfaceFormat, .writeMask = WGPUColorWriteMask_All};
-    const WGPUFragmentState fragment = {
-            .module = fragmentModule,
-            .entryPoint = WGPU_C_STR("fs_main"),
-            .targetCount = 1,
-            .targets = &colorTargetStates,
-    };
-
-    const WGPURenderPipelineDescriptor pipelineDescriptor = {
-            .label = WGPU_C_STR("Render Fragment"),
-            .layout = pipelineLayout,
-            .vertex = { .module = vertexShaderModule, .entryPoint = WGPU_C_STR("vs_main")},
-            .primitive = { .topology = WGPUPrimitiveTopology_TriangleList},
-            .multisample = { .count = 1, .mask = 0xFFFFFFFF},
-            .fragment = &fragment,
+            const bool isError = (msg.type == WGPUCompilationMessageType_Error);
+            char buffer[1024];
+            snprintf(buffer, sizeof(buffer), "%s: %llu:%llu -> %s\n", (isError?"ERROR":"Warning"), msg.lineNum, msg.linePos, msg.message);
+            if (isError) {
+                demo->lastError += buffer;
+            }
+            std::cerr << buffer << std::endl;
+        }
 
     };
-
-    pipeline = wgpuDeviceCreateRenderPipeline(wgpu->device, &pipelineDescriptor);
-    wgpuShaderModuleRelease(fragmentModule);
-    wgpuPipelineLayoutRelease(pipelineLayout);
+    wgpuShaderModuleGetCompilationInfo(fragmentModule, info, this);
+#endif
 }
 
 
@@ -134,33 +130,78 @@ void DemoFragment::cleanup(WGPU *) {
 }
 
 void DemoFragment::frame(WGPU *wgpu, WGPUTextureView frame) {
-    WGPUCommandEncoderDescriptor commandEncoderDescriptor = {.label = WGPU_C_STR("Frame")};
-    WGPUCommandEncoder commandEncoder = wgpuDeviceCreateCommandEncoder(wgpu->device, &commandEncoderDescriptor);
+    if (pipeline) {
+        WGPUCommandEncoderDescriptor commandEncoderDescriptor = {.label = WGPU_C_STR("Frame")};
+        WGPUCommandEncoder commandEncoder = wgpuDeviceCreateCommandEncoder(wgpu->device, &commandEncoderDescriptor);
 
-    WGPURenderPassColorAttachment renderPassColorAttachment{
+        WGPURenderPassColorAttachment renderPassColorAttachment{
             .view = frame,
             .depthSlice = WGPU_DEPTH_SLICE_UNDEFINED,
             .loadOp = WGPULoadOp_Clear,
             .storeOp = WGPUStoreOp_Store,
-    };
-    WGPURenderPassDescriptor renderPass = {
+        };
+        WGPURenderPassDescriptor renderPass = {
             .label = WGPU_C_STR("Main Pass"),
             .colorAttachmentCount = 1,
             .colorAttachments = &renderPassColorAttachment,
-    };
+        };
 
-    WGPURenderPassEncoder renderPassEncoder = wgpuCommandEncoderBeginRenderPass(commandEncoder, &renderPass);
-    wgpuRenderPassEncoderSetPipeline(renderPassEncoder, pipeline);
-    wgpuRenderPassEncoderDraw(renderPassEncoder, 3, 1, 0, 0);
-    wgpuRenderPassEncoderEnd(renderPassEncoder);
-    wgpuRenderPassEncoderRelease(renderPassEncoder);
+        WGPURenderPassEncoder renderPassEncoder = wgpuCommandEncoderBeginRenderPass(commandEncoder, &renderPass);
+        wgpuRenderPassEncoderSetPipeline(renderPassEncoder, pipeline);
+        wgpuRenderPassEncoderDraw(renderPassEncoder, 3, 1, 0, 0);
+        wgpuRenderPassEncoderEnd(renderPassEncoder);
+        wgpuRenderPassEncoderRelease(renderPassEncoder);
 
-    WGPUCommandBuffer commandBuffer = wgpuCommandEncoderFinish(commandEncoder, nullptr);
-    wgpuQueueSubmit(wgpu->queue, 1, &commandBuffer);
+        WGPUCommandBuffer commandBuffer = wgpuCommandEncoderFinish(commandEncoder, nullptr);
+        wgpuQueueSubmit(wgpu->queue, 1, &commandBuffer);
 
-    // post-display free
-    wgpuCommandBufferRelease(commandBuffer);
-    wgpuCommandEncoderRelease(commandEncoder);
+        // post-display free
+        wgpuCommandBufferRelease(commandBuffer);
+        wgpuCommandEncoderRelease(commandEncoder);
+    }
+
+    if (fragmentModule) {
+        if (!lastError.empty()) {
+            wgpuShaderModuleRelease(fragmentModule);
+            fragmentModule = {};
+            return;
+        }
+        // Compilation ok!
+
+        if (pipeline) {
+            wgpuRenderPipelineRelease(pipeline);
+        }
+
+        const WGPUPipelineLayoutDescriptor pipelineLayoutDescriptor = {
+            .label = WGPU_C_STR("pipeline layout")
+        };
+        const WGPUPipelineLayout pipelineLayout = wgpuDeviceCreatePipelineLayout(
+            wgpu->device, &pipelineLayoutDescriptor);
+        const WGPUColorTargetState colorTargetStates = {
+            .format = wgpu->surfaceFormat, .writeMask = WGPUColorWriteMask_All
+        };
+        const WGPUFragmentState fragment = {
+            .module = fragmentModule,
+            .entryPoint = WGPU_C_STR("fs_main"),
+            .targetCount = 1,
+            .targets = &colorTargetStates,
+        };
+
+        const WGPURenderPipelineDescriptor pipelineDescriptor = {
+            .label = WGPU_C_STR("Render Fragment"),
+            .layout = pipelineLayout,
+            .vertex = {.module = vertexShaderModule, .entryPoint = WGPU_C_STR("vs_main")},
+            .primitive = {.topology = WGPUPrimitiveTopology_TriangleList},
+            .multisample = {.count = 1, .mask = 0xFFFFFFFF},
+            .fragment = &fragment,
+
+        };
+
+        pipeline = wgpuDeviceCreateRenderPipeline(wgpu->device, &pipelineDescriptor);
+        wgpuShaderModuleRelease(fragmentModule);
+        wgpuPipelineLayoutRelease(pipelineLayout);
+        fragmentModule = {};
+    }
 }
 
 
@@ -174,7 +215,6 @@ void DemoFragment::imgui(WGPU *wgpu) {
         ImGui::InputTextMultiline("###FragmentCode", fragmentCode, sizeof(fragmentCode), {width, 256});
         if (ImGui::Button("reload")) { rebuild(wgpu); }
         if (!lastError.empty()) {
-            ImGui::Text("ERROR!");
             ImGui::TextUnformatted(lastError.c_str(), lastError.c_str()+lastError.length());
         }
         ImGui::End();
