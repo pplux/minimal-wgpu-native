@@ -1,6 +1,5 @@
 #include "demo.h"
 #include <string>
-#include <__chrono/calendar.h>
 
 #ifdef MINIMAL_WGPU_IMGUI
 #include "imgui.h"

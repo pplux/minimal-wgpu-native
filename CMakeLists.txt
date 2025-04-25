@@ -53,7 +53,7 @@ macro(setup_app app)
     endif()
 
     if(WIN32)
-        target_link_libraries(${app} "${wgpulib_SOURCE_DIR}/lib/wgpu_native.lib" Opengl32 ws2_32 D3DCompiler BCrypt Ntdll Userenv)
+        target_link_libraries(${app} "${wgpulib_SOURCE_DIR}/lib/wgpu_native.lib" Opengl32 ws2_32 D3DCompiler BCrypt Ntdll Userenv RuntimeObject Propsys)
         # Copy wgpu_native.dll where we produce the binary for the executable:
         add_custom_command(TARGET ${app} POST_BUILD
                 COMMAND ${CMAKE_COMMAND} -E copy_if_different

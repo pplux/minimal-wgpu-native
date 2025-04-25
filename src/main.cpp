@@ -57,10 +57,10 @@ void init(WGPU *wgpu) {
 
 #ifdef _MSC_VER
         HINSTANCE hinstance =  GetModuleHandle(NULL);
-        WGPUSurfaceDescriptorFromWindowsHWND nativeSurfaceDescriptor = {};
-        nativeSurfaceDescriptor.chain.sType = WGPUSType_SurfaceDescriptorFromWindowsHWND;
-        nativeSurfaceDescriptor.hinstance = hinstance;
-        nativeSurfaceDescriptor.hwnd = (void*) sapp_win32_get_hwnd();
+        WGPUSurfaceSourceWindowsHWND layer = {};
+        layer.chain.sType = WGPUSType_SurfaceSourceWindowsHWND;
+        layer.hinstance = hinstance;
+        layer.hwnd = (void*) sapp_win32_get_hwnd();
 #endif
 
 #if defined(__APPLE__)
