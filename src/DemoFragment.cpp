@@ -1,4 +1,5 @@
 #include "demo.h"
+#include <chrono>
 #include <string>
 
 #ifdef MINIMAL_WGPU_IMGUI
@@ -16,6 +17,14 @@ struct DemoFragment : public Demo {
     void frame(WGPU*, WGPUTextureView) override;
     void cleanup(WGPU*) override;
     void onError(WGPU *, const char *message) override;
+    void resize(WGPU*, uint32_t width, uint32_t height, float dpi) override;
+
+    struct BufferInfo {
+        float width;
+        float height;
+        float time;
+        uint32_t frameNumber = 0;
+    };
 
 #ifdef MINIMAL_WGPU_IMGUI
     void imgui(WGPU*) override;
@@ -29,14 +38,18 @@ struct DemoFragment : public Demo {
     std::string lastError = {};
     WGPURenderPipeline pipeline;
     WGPUShaderModule vertexShaderModule = {};
+    WGPUBuffer gpuBufferInfo = {};
+    WGPUBindGroupLayout bindGroupLayout = {};
+    WGPUBindGroup bindGroup = {};
 
     char fragmentCode[65536];
+    BufferInfo bufferInfo = {};
+    std::chrono::high_resolution_clock::time_point startTime;
 };
 
 std::unique_ptr<Demo> createDemoFragment() {
     return std::make_unique<DemoFragment>();
 }
-
 
 WGPUShaderModule createShaderModule(WGPU *wgpu, const char *code) {
 #ifdef __EMSCRIPTEN__
@@ -62,6 +75,56 @@ WGPUShaderModule createShaderModule(WGPU *wgpu, const char *code) {
 };
 
 void DemoFragment::init(WGPU *wgpu) {
+
+    // Buffer Info creation
+    const WGPUBufferDescriptor bufferDescriptor = {
+        .nextInChain = nullptr,
+        .label = WGPU_C_STR("Uniform Buffer Info"),
+        .usage = WGPUBufferUsage_Uniform | WGPUBufferUsage_CopyDst,
+        .size = sizeof(BufferInfo),
+        .mappedAtCreation = false,
+    };
+    gpuBufferInfo = wgpuDeviceCreateBuffer(wgpu->device, &bufferDescriptor);
+
+
+    WGPUBindGroupLayoutEntry layoutEntry = {
+        .nextInChain = nullptr,
+        .binding = 0,
+        .visibility = WGPUShaderStage_Fragment,
+        .buffer ={
+            .nextInChain = nullptr,
+            .type = WGPUBufferBindingType_Uniform,
+            .hasDynamicOffset = false,
+            .minBindingSize = sizeof(BufferInfo),
+        }
+    };
+
+    WGPUBindGroupLayoutDescriptor groupLayoutDescriptor = {
+        .nextInChain = nullptr,
+        .label = WGPU_C_STR("BindGroupLayoutDescriptor"),
+        .entryCount = 1,
+        .entries = &layoutEntry,
+    };
+
+    bindGroupLayout = wgpuDeviceCreateBindGroupLayout(wgpu->device, &groupLayoutDescriptor);
+
+    WGPUBindGroupEntry entry = {
+        .nextInChain = nullptr,
+        .binding = 0,
+        .buffer = gpuBufferInfo,
+        .offset = 0,
+        .size = sizeof(BufferInfo),
+    };
+
+    WGPUBindGroupDescriptor groupDescriptor = {
+        .nextInChain = nullptr,
+        .label = WGPU_C_STR("Bind Group Description"),
+        .layout = bindGroupLayout,
+        .entryCount = 1,
+        .entries = &entry,
+    };
+    bindGroup = wgpuDeviceCreateBindGroup(wgpu->device, &groupDescriptor);
+
     vertexShaderModule = createShaderModule(wgpu,
     R"(
         @vertex
@@ -75,11 +138,26 @@ void DemoFragment::init(WGPU *wgpu) {
         }
 
     )");
+    const char *initialFragmentCode= R"(
+struct BufferInfo {
+    size: vec2<f32>,
+    time: f32,
+    frame: u32
+};
 
-    const char *initialFragmentCode = "@fragment\nfn fs_main() -> @location(0) vec4<f32>\n{\n  return vec4<f32>(1.0, 0.0, 0.0, 1.0);\n}\n";
+@group(0) @binding(0)
+var<uniform> info: BufferInfo;
+
+@fragment
+fn fs_main(@builtin(position) fragCoord: vec4<f32>) -> @location(0) vec4<f32> {
+   var p = vec2<f32>(fragCoord.x/info.size.x, fragCoord.y/info.size.y);
+   return vec4<f32>(p.x, p.y, fract(info.time), 1.0);
+})";
 
     memcpy(fragmentCode, initialFragmentCode, strlen(initialFragmentCode)+1);
     rebuild(wgpu);
+
+    startTime = std::chrono::high_resolution_clock::now();
 }
 
 void DemoFragment::rebuild(WGPU *wgpu) {
@@ -118,18 +196,31 @@ void DemoFragment::rebuild(WGPU *wgpu) {
 #endif
 }
 
-
 void DemoFragment::onError(WGPU *, const char *message) {
     lastError = message;
+}
+
+void DemoFragment::resize(WGPU *, uint32_t width, uint32_t height, float dpi) {
+    bufferInfo.width = width * dpi;
+    bufferInfo.height = height * dpi;
 }
 
 void DemoFragment::cleanup(WGPU *) {
     wgpuRenderPipelineRelease(pipeline);
     wgpuShaderModuleRelease(vertexShaderModule);
+    wgpuBufferRelease(gpuBufferInfo);
+    wgpuBindGroupRelease(bindGroup);
+    wgpuBindGroupLayoutRelease(bindGroupLayout);
 }
 
 void DemoFragment::frame(WGPU *wgpu, WGPUTextureView frame) {
     if (pipeline) {
+        // update the buffer info
+        bufferInfo.frameNumber++;
+        bufferInfo.time = std::chrono::duration<float>(std::chrono::high_resolution_clock::now() - startTime).count();
+        wgpuQueueWriteBuffer(wgpu->queue, gpuBufferInfo, 0, &bufferInfo, sizeof(bufferInfo));
+
+        // Create the command encoder to do the render pass
         WGPUCommandEncoderDescriptor commandEncoderDescriptor = {.label = WGPU_C_STR("Frame")};
         WGPUCommandEncoder commandEncoder = wgpuDeviceCreateCommandEncoder(wgpu->device, &commandEncoderDescriptor);
 
@@ -147,6 +238,7 @@ void DemoFragment::frame(WGPU *wgpu, WGPUTextureView frame) {
 
         WGPURenderPassEncoder renderPassEncoder = wgpuCommandEncoderBeginRenderPass(commandEncoder, &renderPass);
         wgpuRenderPassEncoderSetPipeline(renderPassEncoder, pipeline);
+        wgpuRenderPassEncoderSetBindGroup(renderPassEncoder,0, bindGroup, 0, nullptr);
         wgpuRenderPassEncoderDraw(renderPassEncoder, 3, 1, 0, 0);
         wgpuRenderPassEncoderEnd(renderPassEncoder);
         wgpuRenderPassEncoderRelease(renderPassEncoder);
@@ -172,10 +264,14 @@ void DemoFragment::frame(WGPU *wgpu, WGPUTextureView frame) {
         }
 
         const WGPUPipelineLayoutDescriptor pipelineLayoutDescriptor = {
-            .label = WGPU_C_STR("pipeline layout")
+            .label = WGPU_C_STR("pipeline layout"),
+            .bindGroupLayoutCount = 1,
+            .bindGroupLayouts = &bindGroupLayout
         };
+
         const WGPUPipelineLayout pipelineLayout = wgpuDeviceCreatePipelineLayout(
             wgpu->device, &pipelineLayoutDescriptor);
+
         const WGPUColorTargetState colorTargetStates = {
             .format = wgpu->surfaceFormat, .writeMask = WGPUColorWriteMask_All
         };
@@ -193,7 +289,6 @@ void DemoFragment::frame(WGPU *wgpu, WGPUTextureView frame) {
             .primitive = {.topology = WGPUPrimitiveTopology_TriangleList},
             .multisample = {.count = 1, .mask = 0xFFFFFFFF},
             .fragment = &fragment,
-
         };
 
         pipeline = wgpuDeviceCreateRenderPipeline(wgpu->device, &pipelineDescriptor);
