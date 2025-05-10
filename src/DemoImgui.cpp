@@ -321,8 +321,9 @@ void DemoImgui::event(WGPU *, const sapp_event* ev) {
 }
 
 void Demo::imguiShowFrame(WGPU *wgpu, ImVec2 size) {
-    const auto width = (uint32_t) size.x;
-    const auto height = (uint32_t) size.y;
+    const float dpi = sapp_dpi_scale();
+    const auto width = (uint32_t) size.x * dpi;
+    const auto height = (uint32_t) size.y * dpi;
     const bool valid = (width > 0) && (height > 0);
     if (!valid) {
         return;
@@ -330,8 +331,7 @@ void Demo::imguiShowFrame(WGPU *wgpu, ImVec2 size) {
     DemoWindow &w = ::imgui->windows[demoImguiIndex];
     const bool resize = (width != w.width) || (height != w.height);
     if (resize) {
-        const float dpi = sapp_dpi_scale();
-        w.window->resize(wgpu, width, height, dpi);
+        w.window->resize(wgpu, width, height, 1.0f);
         w.width = width;
         w.height = height;
 

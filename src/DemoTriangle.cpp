@@ -136,8 +136,8 @@ void DemoTriangle::imgui(WGPU *wgpu) {
         imguiShowFrame(wgpu, {ImGui::GetContentRegionAvail().x , 256});
         ImGui::ColorEdit3("Background Color", bgColor);
         ImVec4 color = ImVec4(bgColor[0], bgColor[1], bgColor[2], 1.0f);
-        ImGui::End();
     }
+    ImGui::End();
 }
 #endif
 
