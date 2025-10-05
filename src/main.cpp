@@ -118,7 +118,6 @@ void onDevice(WGPU *wgpu) {
     wgpu->surfaceFormat = config.viewFormats[0];
 
     demo->init(wgpu);
-    //demo->resize(wgpu, config.width, config.height, sapp_dpi_scale());
 }
 
 void requestDevice(WGPU *wgpu) {
